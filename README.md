@@ -1,7 +1,7 @@
 # ViktoRi_ZU
-<h2 align="center">Зарядное устройство для аккумуляторных батарей на микроконтроллере Ардуино Viktori</a>
+<h2 align="center">Зарядное устройство для аккумуляторных батарей на микроконтроллере Ардуино Viktori</a> </h2>
 
-<h2 align="center">Телеграмм  <a href="https://t.me/arduino_viktori/" target="_blank">чат</a> 
+<h2 align="center">Телеграмм  <a href="https://t.me/arduino_viktori/" target="_blank">чат</a> </h2>
 
 
 Общие сведения.
