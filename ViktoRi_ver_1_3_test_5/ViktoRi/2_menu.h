@@ -95,8 +95,8 @@ const char* const calibr[] PROGMEM = { namc1, namc2 };
 #define txt5 "\x42\xC3\x78\x6F\xE3"                            //  Выход
 #define txt6 "INA226 \x6F\xC1\xB8\xB2\xBA\x61"                 //  INA226
 #define txt7 "DS18B20 "                                        //  DS18B20
-#define txt8 "!ALERT!"                                         //  Темп -
-//#define txt9 " cek"                                            //  сек
+//#define txt8 "!ALERT!"                                         //  
+#define txt9 "Temp akb:"                                       //  температура акб 
 #define txt10 "\x42\x63\xA2"                                   //  Всё
 #define txt11 "\xA8\x6F\xE3\xBA\xBB\xC6\xC0\xB8 \x41\x4B\xA0"  //  Подключи АКБ
 #define txt12 "\x43\xB2\x70\x6F\x63"                           //  Сброс
@@ -193,8 +193,8 @@ const char* const calibr[] PROGMEM = {
 #define txt5 "Exit"
 #define txt6 "INA226 error"
 #define txt7 "DS18B20 "
-#define txt8 "!ALERT!"
-//#define txt9 " sec"
+//#define txt8 "!ALERT!"
+#define txt9 "Temp akb:"                                       //  температура акб 
 #define txt10 "All"
 #define txt11 "Connect Batt"
 #define txt12 "Sbros"
@@ -288,8 +288,8 @@ const char* const calibr[] PROGMEM = { namc1, namc2 };
 #define txt5 "Exit"
 #define txt6 "INA226 error"
 #define txt7 "DS18B20 "
-#define txt8 "!ALERT!"
-//#define txt9 " cek"
+//#define txt8 "!ALERT!"
+#define txt9 "Temp akb:"                                       //  температура акб 
 #define txt10 "Vse"
 #define txt11 "Podkluchi Akb"
 #define txt12 "Sbros"
@@ -330,10 +330,10 @@ const char service13[] PROGMEM = "FREQ_CHARGE";
 const char service14[] PROGMEM = "FREQ_DISCHAR";
 
 
-#define POWERINT ((uint16_t)vkr.service[0] * 1000)   // напряжение от БП
+#define POWERINT ((uint16_t)EEPROM.read(8+0) * 1000)   // напряжение от БП
 #define POWERMAX 1                                   // максимальное напряжение от БП
-#define INAVKOOFV  ((float)vkr.service[2] / 1000 + 1.0f)     // коэффициент напряжения INA226 
-#define CURRMAXINT ((int16_t)vkr.service[3] * 100)   // максимальный ток
+#define INAVKOOFV  ((float)EEPROM.read(8+2) / 1000 + 1.0f)     // коэффициент напряжения INA226 
+#define CURRMAXINT ((int16_t)EEPROM.read(8+3) * 100)   // максимальный ток
 #define FANMODE 4                                    // режим работы кулера
 #define DEGON 5                                      // температура включения вентилятора в градусах
 #define DEGOFF 6                                     // температура отключения вентилятора в градусах

@@ -43,17 +43,17 @@ void Menu1602() {
               lcd.setCursor(5, 0);
               print_mode(1);  // вывод типа акб
               break;
-            case 1:              
-              print_Capacity();// емкость акб
+            case 1:
+              print_Capacity();  // емкость акб
               break;
-            case 2:              
+            case 2:
               print_mode(1);  // вывод типа акб
               break;
-            case 3:              
-              Vout();// напряжение
+            case 3:
+              Vout();  // напряжение
               break;
-            case 4:              
-              print_mode(0);//  режим
+            case 4:
+              print_mode(0);  //  режим
               break;
           }
         }
@@ -288,15 +288,21 @@ void Menu1602() {
           PrintVA(vin.volt(), 0, 0, 0, 2);
 #endif
           lcd.setCursor(7, 0);
-          print_tr(kul.tQ1);  // чтение температуры / управление кулером;
+#if (SENSTEMP1)
+            print_tr(kul.tQ1);  // температура
+#endif  
 #if (SENSTEMP2 == 2)
-          print_tr(tr_bat.getTempInt());  // чтение температуры с датчика 2 акб
+          print_tr(ntc.akb);  // чтение температуры с датчика 2 акб
 #endif
           setCursory();
           PrintVA(ina.voltsec, ina.ampersec, 0, 0, 3);  // *12.361V -0.253A *
+          // print_memoryFree(); // вывод свободной оперативки
         }
-      }
-      // --- выполнить раз в секунду
+#if (LOGGER)
+        Serial_out(0);
+#endif
+      }  // --- выполнить раз в секунду
+
     } while (!butt.tick and !printx);
     // --- ожидание действий пользователя
     switch (butt.tick) {
@@ -304,14 +310,14 @@ void Menu1602() {
       case LEFT:
         x = butt.tick;
         break;
-    }    
+    }
     printx = true;
   } while (BitIsClear(pam.MyFlag, CHARGE));  // цикл меню
 
   if (pam.Mode != 4) Res_mem_char();                      // сброс значений заряда
   if (pam.Mode == 4 or pam.Mode == 5) Res_mem_dischar();  // сброс значений разряда
   if (pam.Mode == 5) Res_ktc();                           // очистить память КТЦ
-  if (pam.Mode == 2) pam.Round = 3;     // для Бранимира минимум 3 раунда
+  if (pam.Mode == 2) pam.Round = 3;                       // для Бранимира минимум 3 раунда
   regim_end = 0;
   if (pam.Round < 1) pam.Round = 1;
   EEPROM.put((MEM_KTC - 1), pam.Round);  // сохранить количество циклов

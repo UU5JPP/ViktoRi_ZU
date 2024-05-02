@@ -1,18 +1,27 @@
+// постоянно работающие функции
 void sensor_survey(void) {
   butt.Tick();  // опрос кнопок и энкодера
+
   if (ina.sample()) {
     if (bitRead(flag_global, DCDCMODE)) dcdc.Control();  // регулировка тока и напряжения
     else dcdc.Control_dich();
 #if (VOLTIN == 1)
-    vin.sample();  // измерение напряжения БП
+    vin.sample();  // чтение сырых данных с аналогового пина с усреднением - напряжения БП
+#endif
+#if (SENSTEMP1 == 2 or SENSTEMP2 == 2)
+    ntc.readTemp();  // чтение сырых данных с аналогового пина с усреднением. Вызывается часто.
 #endif
   }
-  static uint32_t sec = millis();
-  if (millis() - sec >= 1000) {
-    sec = millis();
+
+  if (sekv.tick()) {
+    // выполняются раз в секунду
     kul.fan();  // чтение температуры и управение кулером
 #if (POWPIN == 1)
     Relay();  // функция управления реле подключения к сети 220В
+#endif
+
+#if (SENSTEMP1 == 2 or SENSTEMP2 == 2)
+    ntc.compute();  // рассчет усредненной температуры с датчиков NTC. Вызывается раз в секунду или реже.
 #endif
   }
 }
@@ -33,8 +42,7 @@ void Storage(bool regim) {
   gio::high(RELAY220);               // включить сеть 220В
   bitClear(flag_global, RELEY_OFF);  // запрещено отключать реле
 #endif
-  Freq(vkr.service[FREQCHARGE]);  // установить частоту работы силового модуля
-
+  Freq(EEPROM.read(8 + FREQCHARGE));  // установить частоту работы силового модуля
   {
     int16_t amp = (regim ? (constrain(pam.Capacity << 2, 50, 1000)) : pam.Current_charge);  // максимальный ток заряда
     uint16_t vlt = regim ? pam.Volt_storage : pam.Volt_buffer;
@@ -63,9 +71,11 @@ void Storage(bool regim) {
       Print_time(t_st++, DISPLAYx - 8, 0);          // *Storage 12:10:36*
       setCursory();                                 // *13.10V 6.12A 25C*
       PrintVA(ina.voltsec, ina.ampersec, 0, 0, 2);  // вывод на дисплей во float - напряжение, ток, ампер-часы, ватт-часы, кол. разрядов после запятой.
-      print_tr(kul.tQ1);                            // чтение температуры
-#if (SENSTEMP2 == 2 and DISPLAYx == 20)
-      print_tr(tr_bat.getTempInt());  // чтение температуры с датчика 2 акб
+#if (SENSTEMP1)
+      print_tr(kul.tQ1);  // температура
+#endif
+#if (SENSTEMP2 == 2)
+      print_tr(ntc.akb);  // температура акб
 #endif
 
       // сигнализация о снижении напряжения акб ниже предела (12V)
@@ -102,7 +112,7 @@ void Storage(bool regim) {
   }
   // цикл работы
   gio::low(PIN_13);  // отключить пин 13. отключить реле нагрузки
-  dcdc.Off();  // отключить заряд, разряд.
+  dcdc.Off();        // отключить заряд, разряд.
 #if (GUARDA0)
   gio::low(PINA0);  // отключить блокировку модуля защиты
 #endif
@@ -143,12 +153,11 @@ void calculate(uint8_t i) {
 #if (POWPIN == 1)
 // функция управления реле подключения к сети 220В
 void Relay(void) {
-  static uint32_t tvin = 0;
   if (ina.voltsec < 9000) {
     // если напряжение подключенной АКБ ниже 9 вольт включается реле 220В.
-    gio::high(RELAY220);                                                                          // включить питание реле (подкл. питание от сети 220В)
-    tvin = millis();                                                                              // запомнить время
-  } else if (bitRead(flag_global, RELEY_OFF) and (millis() - tvin > 120000)) gio::low(RELAY220);  // если разрешено отключать реле и прошло 2 минуты то отключить питание реле (откл. питание от сети 220В)
+    gio::high(RELAY220);                                                           // включить питание реле (подкл. питание от сети 220В)
+    tvin.start();                                                                  // запомнить время
+  } else if (bitRead(flag_global, RELEY_OFF) and tvin.tick()) gio::low(RELAY220);  // если разрешено отключать реле и прошло 2 минуты то отключить питание реле (откл. питание от сети 220В)
 }
 #endif
 
@@ -201,6 +210,7 @@ void Delay(uint16_t t) {
   while (millis() - r < t) sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.  // and !butt.tick
 }
 
+// пауза до нажатия
 void pauses(void) {
   do {
     sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.
@@ -241,7 +251,7 @@ void Korrect(const uint8_t kof) {
 #endif
   lcd.clear();
   if (!kof) {
-    Freq(vkr.service[FREQDISCHAR]);  // установить частоту работы разрядного модуля (4 кГц по умолчанию)
+    Freq(EEPROM.read(8 + FREQDISCHAR));  // установить частоту работы разрядного модуля (4 кГц по умолчанию)
     lcd.print(F(txt11));
     Fixcurrent(2100);  // установить ток разряда 1000мА
     lcd.clear();
@@ -316,8 +326,8 @@ void Korrect(const uint8_t kof) {
         ext = false;
         break;
     }
-  } while (ext);     // установка напряжения
-  dcdc.Off();  // отключить заряд, разряд.
+  } while (ext);  // установка напряжения
+  dcdc.Off();     // отключить заряд, разряд.
 #if (POWPIN == 1)
   bitSet(flag_global, RELEY_OFF);  // разрешено отключать реле
 #endif
@@ -332,7 +342,7 @@ void Wait(uint16_t time_charge) {
   lcd.print(F(txt16));  // Pause
   uint8_t tm = 60;
   sekd.start();  // старт отсчета времени одна секунда
-  ina.start(1);  // старт замеров INA
+  ina.start(2);  // старт замеров INA
   do {
     sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.
 
@@ -343,8 +353,8 @@ void Wait(uint16_t time_charge) {
       lcd.print(time_charge);
       lcd.print(F(txt20));  // "минут"
       tm--;
-      // когда прошла минута
       if (!tm) {
+        // когда прошла минута
         tm = 60;
         time_charge--;
       }
@@ -412,7 +422,6 @@ void End(void) {
 // функция выбора Stop/OK. (timer - секунд, время через которое возвращается false. Если timer = 0 то возврат из функции по нажатию кнопок/енкодера)
 bool Choice(uint8_t secund, bool rez) {
   sekd.start();
-  bool ext = true;
   do {
     switch (butt.tick) {
       case LEFT:
@@ -422,7 +431,7 @@ bool Choice(uint8_t secund, bool rez) {
       case ENCCLICK:
       case OKCLICK:
       case STOPCLICK:
-        ext = false;
+        return rez;
         break;
     }
     lcd.setCursor(4, 1);
@@ -438,8 +447,8 @@ bool Choice(uint8_t secund, bool rez) {
         printSimb();
         secund--;
       }
-    } while (!butt.tick and secund and ext);  // цикл ожидания действий пользователя
-  } while (ext and secund);                   // ожидание нажатия или истечения времени
+    } while (!butt.tick and secund);  // цикл ожидания действий пользователя
+  } while (secund);                   // ожидание истечения времени
   return rez;
 }
 
@@ -481,44 +490,72 @@ uint8_t Percentage(uint16_t volt_max, uint16_t volt, int16_t current, int16_t cu
   return constrain(vperc, 1, 100);
 }
 
-#if (SENSTEMP2 == 2)
+#if (CORRECTCUR == 1 and SENSTEMP2 == 2)
 // контроль температуры Акб с датчика NTC подключенного к пин А6 Ардуино
+void Control_trAkb() {
+  bool tr = true;
+  if (ntc.akb > 40) tr = false;
+  else if (pam.typeAkb <= 4 and ntc.akb < -15) tr = false;
+  else if ((pam.typeAkb <= 6 or pam.typeAkb == 8) and ntc.akb < 10) tr = false;
+  bitWrite(flag_global, DCDC_PAUSE, tr);  // остановить заряд
+  if (!tr) {
+    lcd.clear();
+    Speaker(1000);       // функция звукового сигнала (время в миллисекундах)
+    lcd.print(F(txt9));  // "Temp akb:"
+    lcd.print(ntc.akb);
+    //pauses();
+    Delay(30000);  // пауза 30 сек
+  }
+}
+/*
 bool Control_trAkb() {
-  bool tr = true;                                   // вернуть если температура акб в норме
-  int16_t tr_akb = tr_bat.getTempInt();             // чтение температуры с датчика 2 акб
+  bool tr = true;  // вернуть если температура акб в норме
+  //int16_t tr_akb = tr_bat.getTempInt();             // чтение температуры с датчика 2 акб
   int16_t curr_charge_init = dcdc.getCur_charge();  // ток заряда
   // если акб свинцово-кислотный то производится корректировка напряжения заряда 30 мВ на каждый градус Цельсия при отличии температуры от +25°С.
-  if (pam.typeAkb <= 4) dcdc.setVolt_charge(dcdc.getVolt_charge() - (tr_akb - 25) * 30);  // Pb
-  else if (pam.typeAkb <= 6 or pam.typeAkb == 8) {                                        // "Li-ion" "LiFePo4" "NiCd/Mh"
+  if (pam.typeAkb <= 4) dcdc.setVolt_charge(dcdc.getVolt_charge() - (ntc.akb - 25) * 30);  // Pb
+  else if (pam.typeAkb <= 6 or pam.typeAkb == 8) {                                         // "Li-ion" "LiFePo4" "NiCd/Mh"
     // если температура акб меньше 10 или больше 40 гр то отключить заряд
-    if (tr_akb < 10 or tr_akb > 40) {
+    if (ntc.akb < 10 or ntc.akb > 40) {
       tr = false;
       dcdc.Off();
-    } else if (tr_akb > 35) dcdc.setCur_charge(curr_charge_init - ((tr_akb - 35) * 10 * curr_charge_init / 100));                     // если темпратура акб больше 35 гр то уменьшать ток заряда на 10% на градус.
-    else if (tr_akb < 15) dcdc.setCur_charge(curr_charge_init - ((5 - (tr_akb - 10)) * 10 * curr_charge_init / 100));                 // если темпратура акб меньше 15 гр то уменьшать ток заряда на 10% на градус.
-    else tr = true;                                                                                                                   // t_akb = true;                                                                                                               // иначе продолжать заряд
-  } else if (pam.typeAkb == 7 and tr_akb > 40) dcdc.setCur_charge(curr_charge_init - ((tr_akb - 40) * 10 * curr_charge_init / 100));  // "LiTit" // если темпратура акб больше 40 гр то уменьшать ток заряда на 10% на градус.
+    } else if (ntc.akb > 35) dcdc.setCur_charge(curr_charge_init - ((ntc.akb - 35) * 10 * curr_charge_init / 100));                     // если темпратура акб больше 35 гр то уменьшать ток заряда на 10% на градус.
+    else if (ntc.akb < 15) dcdc.setCur_charge(curr_charge_init - ((5 - (ntc.akb - 10)) * 10 * curr_charge_init / 100));                 // если темпратура акб меньше 15 гр то уменьшать ток заряда на 10% на градус.
+    else tr = true;                                                                                                                     // t_akb = true;                                                                                                               // иначе продолжать заряд
+  } else if (pam.typeAkb == 7 and ntc.akb > 40) dcdc.setCur_charge(curr_charge_init - ((ntc.akb - 40) * 10 * curr_charge_init / 100));  // "LiTit" // если темпратура акб больше 40 гр то уменьшать ток заряда на 10% на градус.
   return tr;
 }
+*/
 #endif
 
 // функция отправки значений в сетевой порт
-// время, напряжение, ток, А/ч, Вт/ч, темп Акб, темп Q1, напряжение БП
-#if (LOGGER == 1)
-void Serial_out(float volt, float amperSred, uint8_t tQ1, float volt_in, float Achas, uint8_t tAkb) {  //
-  //const char* simb = ";";
-  Serial.print(volt / 1000, 3);       //1 напряжение на АКБ (милливольт)/1000_________________
-  Serial.print(";");                  // символ между значениями___________________________________
-  Serial.print(amperSred / 1000, 3);  //2 ток АКБ (миллиампер)/1000___________________________
-  Serial.print(";");                  // символ между значениями___________________________________
-  Serial.print(tQ1, 1);               //3 Температура на Q1 (градусы)
-  Serial.print(";");                  // символ между значениями___________________________________
-  Serial.print(volt_in / 1000, 3);    //4 напряжение от БП (милливольт)/1000__________________   vin
-  Serial.print(";");                  // символ между значениями___________________________________
-  Serial.print(Achas / 100000, 3);    //5 Полученная_отданная емкость АКБ (А/ч)) /100000______
-  Serial.print(";");                  // символ между значениями___________________________________
-  Serial.print(1);                    //6 Температура АКБ (градусы)
-  //Serial.print(";");
+#if (LOGGER)
+void Serial_print(float x) {
+  Serial.print(x, 2);
+  Serial.print(F(";"));
+}
+
+// Вывод логов в сетевой порт // выполняется 1964 мкс (на lgt8 32МГц - 840 мкс)
+// напряжение, ток, А/ч, (напряжение БП), (темп Q1), (темп Акб) - в скобках вывод при наличии датчиков
+void Serial_out(float Achas) {
+  Serial_print((float)ina.voltsec / 1000);   //1 напряжение на АКБ (вольт)
+  Serial_print((float)ina.ampersec / 1000);  //2 ток АКБ (ампер)
+  Serial_print(Achas / 100000);              //3 Полученная_отданная емкость АКБ (А/ч))
+#if (VOLTIN == 1)
+  Serial_print((float)vin.volt() / 1000);  //4 напряжение от БП
+#endif
+#if (SENSTEMP1)
+  Serial_print(kul.tQ1);  //5 Температура на Q1 (градусы)
+#endif
+
+#if (SENSTEMP2 == 2)
+  Serial_print(ntc.akb);  //6 Температура АКБ (градусы)
+#endif
+  // Serial_print( ); // добавь что хочешь
+  // Serial_print( ); // добавь что хочешь
+  // Serial_print( ); // добавь что хочешь
+  // Serial_print( ); // добавь что хочешь
+
   //Serial.print(7);      //7  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере. нужна коррекция скетча WiFi переходника
   //Serial.print(";");
   //Serial.print(8);      //8  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
@@ -540,50 +577,11 @@ void Serial_out(float volt, float amperSred, uint8_t tQ1, float volt_in, float A
   //Serial.print(16);    //16  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
   //Serial.print(";");
   //Serial.print(17);    //17  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-  Serial.println(";");  // Знак переноса строки.
+  Serial.print("\n");  // Знак переноса строки.00
 }
 #endif
 
-// время, напряжение, ток
-#if (LOGGER == 2)
-void Serial_out(float volt, float amperSred, uint8_t tQ1, float Achas) {
-  //const char* simb = ";";
-  Serial.print(volt / 1000, 3);       //1 напряжение на АКБ (милливольт)/1000_________________
-  Serial.print(";");                  // символ между значениями___________________________________
-  Serial.print(amperSred / 1000, 3);  //2 ток АКБ (миллиампер)/1000___________________________
-  Serial.print(";");                  // символ между значениями___________________________________
-  Serial.print(tQ1, 1);               //3 Температура на Q1 (градусы)
-  Serial.print(";");                  // символ между значениями___________________________________
-  Serial.print(1);                    //4 напряжение от БП (милливольт)/1000__________________
-  Serial.print(";");                  // символ между значениями___________________________________
-  Serial.print(Achas / 100000, 3);    //5 Полученная_отданная емкость АКБ (А/ч)) /100000______
-  Serial.print(";");                  // символ между значениями___________________________________
-  Serial.print(1);                    //6 Температура АКБ (градусы)
-                                      //Serial.print(";");
-                                      //Serial.print(7);      //7  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере. нужна коррекция скетча WiFi переходника
-                                      //Serial.print(";");
-                                      //Serial.print(8);      //8  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-                                      //Serial.print(";");
-                                      //Serial.print(9);      //9  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-                                      //Serial.print(";");
-                                      //Serial.print(10);    //10  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-                                      //Serial.print(";");
-                                      //Serial.print(11);    //11  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-                                      //Serial.print(";");
-                                      //Serial.print(12);    //12  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-                                      //Serial.print(";");
-                                      //Serial.print(13);    //13  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-                                      //Serial.print(";");
-                                      //Serial.print(14);    //14  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-                                      //Serial.print(";");
-                                      //Serial.print(15);    //15  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-                                      //Serial.print(";");
-                                      //Serial.print(16);    //16  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-                                      //Serial.print(";");
-                                      //Serial.print(17);    //17  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-  Serial.println(";");                // Знак переноса строки.00
-}
-#endif
+
 
 /*
 // ===================== FLAGS Button======================

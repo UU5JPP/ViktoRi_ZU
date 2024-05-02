@@ -1,4 +1,5 @@
 // флаги управления зарядом
+/*
 #define CHARGEZ 0  // заряд включен
 #define OSCILZ 1   // осциляция
 #define TAKBZ 2    // температура акб
@@ -6,6 +7,7 @@
 #define KORRVA 4   // изменение вольт или ампер
 #define POWOFF 5   // питание вкл/откл
 #define VMAXM 7    // напряжение достигло максимума
+*/
 
 struct VA_var {
   uint16_t vmax[13] = { 0 };  // 13 значения напряжения. Сохраняются каждые 5 минут.
@@ -77,9 +79,9 @@ struct VA_var {
 };
 
 struct Tyme {
-  uint32_t local;  // сюда сохраняем время заряда из памяти в сек (при запуске заряда)
-  uint32_t real;   // сюда сохраняем начальный таймер заряда в мс (при запуске заряда)
-  uint32_t real_tm; // сюда рассчитывается полное время заряда (каждую секунду)
+  uint32_t local;    // сюда сохраняем время заряда из памяти в сек (при запуске заряда)
+  uint32_t real;     // сюда сохраняем начальный таймер заряда в мс (при запуске заряда)
+  uint32_t real_tm;  // сюда рассчитывается полное время заряда (каждую секунду)
 
   void cal_real_tm(void) {
     real_tm = local + (millis() - real) / 1000;  // рассчитать количество всех секунд заряда (каждую секунду)
@@ -88,20 +90,20 @@ struct Tyme {
 
 // Функция заряда. volt_charge_init - напряжение заряда, curr_charge_init - ток заряда, curr_min - минимальный ток заряда, time_charge - время заряда в часах, add_charge - дозаряд вкл/откл
 void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr_min, uint32_t time_charge, bool add_charge) {
+  enum {CHARGEZ = 0, OSCILZ, TAKBZ, KORR, KORRVA, POWOFF, VMAXM};
   bitSet(flag_global, DCDCMODE);  // режим dcdc - Заряд
   //вывод режима, напряжения и тока заряда/разряда
 #if (GUARDA0)
   Guard();  // принудительная блокировка модуля защиты при напряжении заряда или разряда акб менее 5 Вольт.
 #endif
   // вывод значений заряда
-  PrintVA(volt_charge_init, curr_charge_init, 0, 0, 1);               // вывод напряжения и тока заряда
-  lcd.print(time_charge);  // вывод времени заряда/дозаряда
-  lcd.write(104);                                                     // h
+  PrintVA(volt_charge_init, curr_charge_init, 0, 0, 1);  // вывод напряжения и тока заряда
+  lcd.print(time_charge);                                // вывод времени заряда/дозаряда
+  lcd.write(104);                                        // h
   lcd.setCursor(DISPLAYx - 2, 0);
   printCykl();  // вывод количества циклов
-
-  Freq(vkr.service[FREQCHARGE]);  // установить частоту работы силового модуля
-  time_charge *= 3600;            // перевел часы в секунды 
+  Freq(EEPROM.read(8 + FREQCHARGE));  // установить частоту работы силового модуля
+  time_charge *= 3600;  // перевел часы в секунды
 
   VA_var va;
   Tyme tyme;
@@ -129,21 +131,14 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
   const int16_t cur_max = curr_charge_init;
 
 #if (POWPIN == 1)
-  gio::high(RELAY220);  // включить сеть 220В
-  bitClear(flag_global, RELEY_OFF);    // запрещено отключать реле
+  gio::high(RELAY220);               // включить сеть 220В
+  bitClear(flag_global, RELEY_OFF);  // запрещено отключать реле
 #endif
-#if (LOGGER > 0)
+#if (LOGGER)
   uint8_t logg = LOGGTIME;  // период отправки данных в сетевой порт
 #endif
   const int x[] = { (int)(&settings[14]), (int)(&modeTxt[0]), (int)(&modeTxt[3]), (int)(&settings[17]), (int)(&modeTxt[2]) };  // {предварительный заряд, заряд, дозаряд, Качели, Бранимир}
-  uint8_t flagsz = 0b00110111;
-  // #define  CHARGEZ  0    // 1 заряд включен
-  // #define  OSCILZ   1    // 1 осциляция
-  // #define  TAKBZ    2    // 1 температура акб
-  // #define  KORR     3    // 0 корректировка напряжения и тока заряда
-  // #define  KORRVA   4    // 1 изменение вольт или ампер
-  // #define  POWOFF   5    // 1 питание вкл/откл
-  // #define  VMAXM    7    // напряжение достигло максимума
+  uint8_t flagsz = 0b00110111;  // флаги
   uint8_t q1 = 0;  // количество проверок силового транзистора 2
   Delay(3000);
   lcd.clear();
@@ -154,7 +149,7 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
   sekd.start();  // старт отсчета времени одна секунда
   ina.start(1);  // старт замеров INA
   dcdc.start();
-  tyme.real = millis(); // запоминаем текущее время заряда
+  tyme.real = millis();  // запоминаем текущее время заряда
   // цикл заряда
   while (bitRead(flagsz, CHARGEZ) and bitRead(pam.MyFlag, CHARGE)) {
     sensor_survey();  // опрос кнопок, INA226, напряж. от БП., контроль dcdc.
@@ -162,7 +157,7 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
     if (butt.tick) {
       // если кнопка нажата
       if (bitRead(flagsz, KORR)) {
-        // производится корректировка напряжения и тока заряда        
+        // производится корректировка напряжения и тока заряда
         switch (butt.tick) {
           case RIGHT:  // энкодер вправо
           case LEFT:   // энкодер влево
@@ -182,29 +177,29 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
             ClearStr(15);  // очистить вторую строку
             break;
         }
-      } else {        
+      } else {
         switch (butt.tick) {
           case STOPHELD:
-          case ENCHELD:            
-            if (n_disp == 0) bitClear(pam.MyFlag, CHARGE); // завершить заряд
+          case ENCHELD:
+            if (n_disp == 0) bitClear(pam.MyFlag, CHARGE);  // завершить заряд
             if (butt.tick == STOPHELD) break;
           case OKHELD:
             if (n_disp == WINDC) bitSet(flagsz, KORR);
-            break;            
+            break;
           case RIGHT:
           case LEFT:
-            if (bitRead(flag_global, POWERON)) {              
+            if (bitRead(flag_global, POWERON)) {
               // если питание от БП приходит то выбрать следующее окно
               lcd.clear();
               n_disp = (n_disp == 0 and butt.tick < 0) ? WINDC : n_disp + butt.tick;  // окно отображения
-              ns_disp = TIME_DISP;                                    // время отображения сек
+              ns_disp = TIME_DISP;                                                    // время отображения сек
             }
             break;
         }
       }
     }
 
-    (bitRead(flagsz, OSCILZ) and bitRead(flagsz, TAKBZ)) ? bitSet(flag_global, DCDC_PAUSE) : bitClear(flag_global, DCDC_PAUSE);
+    (bitRead(flagsz, OSCILZ)) ? bitSet(flag_global, DCDC_PAUSE) : bitClear(flag_global, DCDC_PAUSE);
 
     switch (time_millis) {
       case 0:
@@ -224,7 +219,7 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
         break;
       case 12:
         // прибавить секунду ко времени, если время больше установленного завершить работу
-        tyme.cal_real_tm(); // рассчитать количество всех секунд заряда 
+        tyme.cal_real_tm();  // рассчитать количество всех секунд заряда
         if (tyme.real_tm > time_charge) {
           bitClear(flagsz, CHARGEZ);
           regim_end = 1;  // закончилось время
@@ -238,9 +233,9 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
           pam.Ah_charge += aw_ch((int32_t)ina.ampersec);  // расчет ампер/часов
           pam.Wh_charge += aw_ch(ina.getPower());         // расчет ватт/часов
         }
-        
+
         // выполнить если включен таймер завершения заряда
-        if (Timezar) {         
+        if (Timezar) {
           if (--Timezar == 0) bitClear(flagsz, CHARGEZ);  // если таймер вышел то завершить заряд
         }
         break;
@@ -300,7 +295,7 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
       case 10:
         // вывод на дисплей 1602
 #if (DISPLAYy == 2)
-        switch (n_disp) {          
+        switch (n_disp) {
           case 0:
             // экран 0
             Display_print((add_charge ? pam.Ah_addcharge : pam.Ah_charge), tyme.real_tm, Percentage(volt_charge_init, va.vmax[12], va.amin[12], curr_min), add_charge);  // вывод текущих значений напряжения, тока. Вывод Ватт-часов.
@@ -322,12 +317,15 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
             // экран 2
             setCursorx();
             PrintVA(0, 0, 0, (add_charge ? pam.Wh_addcharge : pam.Wh_charge), 2);
+#if (SENSTEMP1)
             print_tr(kul.tQ1);  // температура
+#endif             
+#if (SENSTEMP2 == 2)
+            print_tr(ntc.akb);  // температура акб
+#endif            
             lcd.setCursor(DISPLAYx - 1, 0);
             lcd.print(regim_end);  // причина завершения заряда
-#if (SENSTEMP2 == 2)
-            print_tr(tr_bat.getTempInt());  // температура
-#endif
+
             setCursory();
 #if (VOLTIN == 1)
             PrintVA(vin_volt, 0, 0, 0, 1);
@@ -350,6 +348,8 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
             setCursorx();
             lcd.print((float)(ina.getPower() / 1000), 2);
             lcd.print(F("W"));
+
+           // print_memoryFree(); // вывод свободной оперативки
 #endif
             break;
           case 4:
@@ -444,7 +444,7 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
           // сохранить 12 значений напряжения и тока за 1 час
           va.offset();  // смещение значений на одно влево
 
-          switch (typez) {            
+          switch (typez) {
             case 1:
               // включен предварительный заряд
               ap[1] += 3;  // каждые 5 минут увеличиваем ток заряда.
@@ -584,22 +584,16 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
         // резерв
         //       break;
       case 2:
-#if (SENSTEMP2 == 2)
-        bitWrite(flagsz, TAKBZ, Control_trAkb());  // контроль температуры Акб с датчика NTC подключенного к пин А6 Ардуино
+#if (CORRECTCUR == 1 and SENSTEMP2 == 2)
+        Control_trAkb();  // контроль температуры Акб с датчика NTC подключенного к пин А6 Ардуино
 #endif
         break;
       case 1:
-#if (LOGGER == 1)
+#if (LOGGER)
         logg--;
         if (!logg) {
-          logg = LOGGTIME;
-          Serial_out(ina.voltsec, ina.ampersec, kul.tQ1, vin_volt, (add_charge ? pam.Ah_addcharge : pam.Ah_charge), 0);  //------------------------------------//------------------------------------------//Serial_out(tyme.real_tm, ina.voltsec, ina.ampersec, (add_charge ? pam.Ah_addcharge : pam.Ah_charge), (add_charge ? pam.Wh_addcharge : pam.Wh_charge), 0, kul.tQ1, vin_volt);  // функция отправки значений в сетевой порт
-        }
-#elif (LOGGER == 2)
-        logg--;
-        if (!logg) {
-          logg = LOGGTIME;
-          Serial_out(ina.voltsec, ina.ampersec, kul.tQ1, (add_charge ? pam.Ah_addcharge : pam.Ah_charge));  //-------------------------------//--------------------------------------//Serial_out(tyme.real_tm, ina.voltsec, ina.ampersec);  // функция отправки значений в сетевой порт
+          logg = LOGGTIME;          
+          Serial_out(add_charge ? pam.Ah_addcharge : pam.Ah_charge);
         }
 #endif
         break;

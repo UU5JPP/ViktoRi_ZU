@@ -5,7 +5,7 @@ void Discharge() {
   //вывод режима, напряжения и тока заряда/разряда
   PrintVA(pam.Volt_discharge, pam.Current_discharge, 0, 0, 1);  // напряжения и тока разряда
   printCykl();                                                  // вывод количества циклов
-  Freq(vkr.service[FREQDISCHAR]);                               // установить частоту работы разрядного модуля (4 кГц по умолчанию)
+  Freq(EEPROM.read(8 + FREQDISCHAR));                           // установить частоту работы разрядного модуля (4 кГц по умолчанию)
   const uint16_t s1 = ina.voltsec;                              // текущее наряжение акб;
   uint8_t tok = 1, n_disp = 0, ns_disp = 0;
   bool dischar = true;  // разряд включен
@@ -14,7 +14,7 @@ void Discharge() {
   Tyme tyme;
   tyme.local = pam.Time_discharge;
 
-#if (LOGGER > 0)
+#if (LOGGER)
   uint8_t logg = LOGGTIME;  // период отправки данных в сетевой порт
 #endif
   Delay(3000);
@@ -29,7 +29,7 @@ void Discharge() {
   sekd.start();           // старт отсчета времени одна секунда
   ina.start(2);           // старт замеров INA
   dcdc.start();
-  tyme.real = millis(); // запоминаем текущее время
+  tyme.real = millis();  // запоминаем текущее время
   // цикл разряда 35 часов максимум
   while (dischar and bitRead(pam.MyFlag, CHARGE) and pam.Time_discharge < 126000) {
     sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.
@@ -41,8 +41,8 @@ void Discharge() {
         case STOPHELD:                   // удержать Стоп
           bitClear(pam.MyFlag, CHARGE);  // завершить разряд
           break;
-        case RIGHT:          // энкодер вправо
-        case LEFT:           // энкодер влево
+        case RIGHT:             // энкодер вправо
+        case LEFT:              // энкодер влево
           n_disp++;             // окно отображения
           ns_disp = TIME_DISP;  // время отображения сек
           lcd.clear();
@@ -60,7 +60,7 @@ void Discharge() {
             int16_t ampsec = abs(ina.ampersec);
             pam.Ah_discharge += aw_ch((int32_t)ampsec);      // расчет ампер/часов
             pam.Wh_discharge += aw_ch(abs(ina.getPower()));  // расчет ватт/часов
-            tyme.cal_real_tm(); // рассчитать количество всех секунд разряда
+            tyme.cal_real_tm();                              // рассчитать количество всех секунд разряда
             pam.Time_discharge = tyme.real_tm;
 
             if (ina.voltsec <= pam.Volt_discharge and ampsec <= pam.Current_discharge_min) dischar = false;  // напряжение уменьшилось до установленного и ток уменьшился до установленного то завершить разряд
@@ -88,7 +88,13 @@ void Discharge() {
               PrintVA(0, 0, 0, pam.Wh_discharge, 2);
               lcd.print(map(ina.voltsec, pam.Volt_discharge, s1, 0, 100));
               lcd.print(F(txt_PRC));
+#if (SENSTEMP1)
               print_tr(kul.tQ1);  // температура
+#endif
+#if (SENSTEMP2 == 2)
+              print_tr(ntc.akb);  // температура акб
+#endif
+                // print_memoryFree(); // вывод свободной оперативки
               if (ns_disp) ns_disp--;
               else n_disp = 0;
               break;
@@ -113,7 +119,12 @@ void Discharge() {
               printSimb();
               printCykl();
               setCursory();
+#if (SENSTEMP1)
               print_tr(kul.tQ1);  // температура
+#endif
+#if (SENSTEMP2 == 2)
+              print_tr(ntc.akb);  // температура акб
+#endif
               if (ns_disp) ns_disp--;
               else n_disp = 0;
               break;
@@ -133,18 +144,11 @@ void Discharge() {
 #if (GUARDA0)
           Guard();  // принудительная блокировка модуля защиты при напряжении заряда или разряда акб менее 5 Вольт.
 #endif
-#if (LOGGER == 1)
+#if (LOGGER)
           logg--;
           if (!logg) {
             logg = LOGGTIME;
-            Serial_out(ina.voltsec, ina.ampersec, kul.tQ1, 0, pam.Ah_discharge, 0);  //----------------------//-------------------------//Serial_out(pam.Time_discharge, ina.voltsec, ampsec, pam.Ah_discharge, pam.Wh_discharge, 0, 0, 0);  // функция отправки значений в сетевой порт
-          }
-#endif
-#if (LOGGER == 2)
-          logg--;
-          if (!logg) {
-            logg = LOGGTIME;
-            Serial_out(ina.voltsec, ina.ampersec, kul.tQ1, pam.Ah_discharge);  //-------------------------------//----------------------//Serial_out(pam.Time_discharge, ina.voltsec, ampsec);  // функция отправки значений в сетевой порт
+            Serial_out(pam.Ah_discharge);
           }
 #endif
 
@@ -179,7 +183,7 @@ void Resist() {
     Delay(1000);
     return;
   }
-  Freq(vkr.service[FREQDISCHAR]);  // установить частоту работы разрядного модуля (4 кГц по умолчанию)
+  Freq(EEPROM.read(8 + FREQDISCHAR));  // установить частоту работы разрядного модуля (4 кГц по умолчанию)
   uint16_t U[2] = { 0 };
   int16_t I[2] = { 0 };
   uint8_t timer = 8;  // время первого замера сек.
@@ -202,13 +206,12 @@ void Resist() {
   } while (timer);
   I[0] = abs(ina.ampersec);
   U[0] = ina.voltsec;
-  // uint32_t t = millis();
-  dcdc.Off();  // отключить заряд, разряд.
-  gio::high(PWMDCH);  // включить максимальный ток
-  Delay(1000);                       // ожидание
-  I[1] = abs(ina.ampersec);          // чтение тока ina.amperms
-  U[1] = ina.voltsec;                // чтение напряжения ina.voltms
-  dcdc.Off();  // отключить заряд, разряд.
+  dcdc.Off();                // отключить заряд, разряд.
+  gio::high(PWMDCH);         // включить максимальный ток
+  Delay(1000);               // ожидание
+  I[1] = abs(ina.ampersec);  // чтение тока ina.amperms
+  U[1] = ina.voltsec;        // чтение напряжения ina.voltms
+  dcdc.Off();                // отключить заряд, разряд.
   setCursory();
   PrintVA(U[1], I[1], 0, 0, 2);                         // *12.36V 3.55A    *
   Delay(3000);                                          // ожидание 3 сек

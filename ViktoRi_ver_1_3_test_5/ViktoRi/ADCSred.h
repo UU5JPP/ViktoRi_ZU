@@ -14,7 +14,7 @@ public:
   void start(void) {
     _timer = 0;
     _k = 0;
-    _vmax = (uint16_t)(((uint16_t)vkr.service[POWERMAX] * 1000) / ((((float)DIV_R1 + DIV_R2) / DIV_R2 / BITRATE) * vkr.Vref));  // максимальное напряжение от БП
+    _vmax = (uint16_t)(((uint16_t)EEPROM.read(8+POWERMAX) * 1000) / ((((float)DIV_R1 + DIV_R2) / DIV_R2 / BITRATE) * vkr.Vref));  // максимальное напряжение от БП
     _vinmcrs = (int32_t)analogRead_my(POWIN);
   }
 

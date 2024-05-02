@@ -29,7 +29,7 @@ public:
 #if (MCP4725DAC)
   // регулировка напряжения и тока
   void Control() {
-    if (bitRead(flag_global, DCDC_PAUSE) and bitRead(flag_global, POWERON) and BitIsClear(flag_global, POWERHIGH)) {
+    if (bitRead(pam.MyFlag, CHARGE) and bitRead(flag_global, DCDC_PAUSE) and bitRead(flag_global, POWERON) and BitIsClear(flag_global, POWERHIGH)) {
       if (ina.isAlert() or abs(ina.amperms) >= _cur_max) _tok = constrain(_tok - 10, 0, 4095);
       else {
         // плавный пуск - плавное увеличение тока заряда
@@ -57,8 +57,8 @@ public:
 #else
 
   // регулировка напряжения и тока заряда
-  void Control() {
-    if (bitRead(flag_global, DCDC_PAUSE) and bitRead(flag_global, POWERON) and BitIsClear(flag_global, POWERHIGH)) {
+  void Control(void) {
+    if (bitRead(pam.MyFlag, CHARGE) and bitRead(flag_global, DCDC_PAUSE) and bitRead(flag_global, POWERON) and BitIsClear(flag_global, POWERHIGH)) {
       if (abs(ina.amperms) >= _cur_max) _tok = constrain(_tok - 1, 0, 255);
       else {
         if (millis() - _time_sec > 1000) {
@@ -114,7 +114,7 @@ public:
 #if (DISCHAR == 1)
   void Control_dich(void) {
     // разряд
-    if (BitIsClear(flag_global, POWERHIGH) and bitRead(flag_global, DCDC_PAUSE)) {
+    if (bitRead(pam.MyFlag, CHARGE) and bitRead(flag_global, DCDC_PAUSE) and BitIsClear(flag_global, POWERHIGH)) {
       int16_t volt_err = (int16_t)ina.voltms - (int16_t)pam.Volt_discharge;  // величина ошибки по напряжению
       int16_t amp_err = pam.Current_discharge - abs(ina.amperms);            // величина ошибки по току
       int16_t err = (volt_err < amp_err) ? volt_err : amp_err;               // регулируем напряжение или ток

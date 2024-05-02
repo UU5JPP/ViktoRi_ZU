@@ -48,14 +48,12 @@ void Relay(void);
 #if (GUARDA0)
 void Guard(void);
 #endif
-#if (SENSTEMP2 == 2)
-bool Control_trAkb();
+#if (CORRECTCUR == 1 and SENSTEMP2 == 2)
+void Control_trAkb();
 #endif
-#if (LOGGER == 1)
-void Serial_out(float volt, float amperSred, uint8_t tQ1, float volt_in, float Achas, uint8_t tAkb);
-#endif
-#if (LOGGER == 2)
-void Serial_out(float volt, float amperSred, uint8_t tQ1, float Achas);
+#if (LOGGER)
+void Serial_print(float x);
+void Serial_out(float Achas);
 #endif
 #if (DISCHAR == 1)
 void Discharge();

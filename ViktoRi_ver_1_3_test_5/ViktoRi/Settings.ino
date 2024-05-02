@@ -118,7 +118,7 @@ void Settings_point(uint8_t point, bool edit, int8_t x) {
         PrintVA(pam.Volt_buffer, 0, 0, 0, 2);
         break;
       case 13:
-        // напряжение напряжение режима Хранение
+        // напряжение режима Хранение
         pam.Volt_storage = constrain(pam.Volt_storage + x * STEP_VOLT, 1000, POWERINT);
         PrintVA(pam.Volt_storage, 0, 0, 0, 2);
         break;

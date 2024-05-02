@@ -9,7 +9,7 @@ public:
     // Функции управления подсветкой
 #if (TIME_LIGHT)
   void Light_setTime() {
-    _light_tm = (uint32_t)vkr.service[TIMELIGHT] * 60000;  // установить время подсветки
+    _light_tm = (uint32_t)EEPROM.read(8+TIMELIGHT) * 60000;  // установить время подсветки
   }
 
   void Light_high(void) {
@@ -18,7 +18,7 @@ public:
   }
 
   void Light_low(void) {
-    if (vkr.service[TIMELIGHT] and (millis() - _light_time > _light_tm)) lcd.setBacklight(false);  // если разрешено отключение подсветки и время вышло отключение подсветки
+    if (EEPROM.read(8+TIMELIGHT) and (millis() - _light_time > _light_tm)) lcd.setBacklight(false);  // если разрешено отключение подсветки и время вышло отключение подсветки
   }
 #endif
 

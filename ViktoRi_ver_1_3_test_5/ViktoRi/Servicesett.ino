@@ -1,7 +1,27 @@
+// uint8_t service[SETTINGS_AMOUNT];  // основные параметры зарядника
+/* service[15];          // основные параметры зарядника
+  0  POWER 24              // напряжение от БП
+  1  POWERMAX 26           // максимально допустимое напряжение от БП
+  2  INAVOLTKOOF 250       // коэффициент напряжения INA226 
+  3  CURR_MAX 10           // Максимальный ток зарядника
+  4  FAN 1                 // тип управления вентилятором
+  5  DEG_ON 40             // температура включения вентилятора в градусах
+  6  DEG_OFF 37            // температура отключения вентилятора в градусах
+  7  DEG_MAX 60            // значение температуры для максимальных оборотов вентилятора ШИМ.
+  8  DEG_CUR 80            // температура при которой уменьшается ток заряда
+  9  CURFAN_ON 15          // значение тока в Амперах/10 при котором включается вентилятор. (до 25,5А)
+  10  CURFAN_OFF 12        // значение тока в Амперах/10 при котором отключается вентилятор. (до 25,5А)
+  11  CURFAN_MAX 60        // значение тока в Амперах/10  для максимальных оборотов вентилятора ШИМ. (до 25,5А)
+  12  TIME_LIGHT 3         // время подсветки дисплея в минутах     (до 255 минут)
+  13  FREQ_CHARGE 6        // частота силового модуля 0.25, 0.5, 1, 2, 4, 8, 30, 60 кГц
+  14  FREQ_DISCHAR 4       // частота работы разрядного модуля 0.25, 0.5, 1, 2, 4, 8, 30, 60 кГц
+*/
 #if (SERVICE == 1)
 // изменение сервисных параметров
 void serviceparam(void) {
   lcd.clear();
+  uint8_t service[SETTINGS_AMOUNT];  // основные параметры зарядника
+  EEPROM.get(8, service);            // читаю из памяти значения
   uint8_t arrowPos = 0;   // номер пункта меню
   bool controlState = 0;  // клик
   int8_t screenPos = 0;   // номер "экрана"
@@ -20,7 +40,7 @@ void serviceparam(void) {
       // выводим имя и значение пункта меню
       disp.printFromPGM((int)(&servicc[DISPLAYy * screenPos + i]));
       lcd.print(F(": "));
-      lcd.print(vkr.service[DISPLAYy * screenPos + i]);
+      lcd.print(service[DISPLAYy * screenPos + i]);
       printSimb();  // пробелы для очистки
     }
     pauses();  // ожидание действий пользователя
@@ -33,14 +53,14 @@ void serviceparam(void) {
         } else {
           switch (arrowPos) {
             case FANMODE:                                                        // выбор режима работы кулера
-              vkr.service[arrowPos] = constrain(vkr.service[arrowPos] + butt.tick, 0, 2);  // меняем параметры
+              service[arrowPos] = constrain(service[arrowPos] + butt.tick, 0, 2);  // меняем параметры
               break;
             case FREQCHARGE:                                                       // изменение частоты заряда
             case FREQDISCHAR:                                                      // изменение частоты разряда
-              vkr.service[arrowPos] = constrain(vkr.service[arrowPos] + butt.tick, 0, 7);  // меняем параметры частоты
+              service[arrowPos] = constrain(service[arrowPos] + butt.tick, 0, 7);  // меняем параметры частоты
               break;
             default:
-              vkr.service[arrowPos] = constrain(vkr.service[arrowPos] + butt.tick, 0, 255);  // меняем параметры
+              service[arrowPos] = constrain(service[arrowPos] + butt.tick, 0, 255);  // меняем параметры
               break;
           }
         }
@@ -60,7 +80,7 @@ void serviceparam(void) {
   lcd.print(F(txt3));  // saved
   lcd.write(63);       // ?
   if (Choice(30, false)) {
-    Saved();      // сохранить настройки
+    EEPROM.put(8, service);   // сохранить настройки
     resetFunc();  // перезагрузить Ардуино
   }
 }
