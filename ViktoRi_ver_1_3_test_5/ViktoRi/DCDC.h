@@ -18,7 +18,7 @@ public:
   void start(void) {
     _cur_max = CURRMAXINT;
     _err_pred = 0;
-    _Integral = 0.0;    
+    _Integral = 0.0;
     bitSet(flag_global, DCDC_SMOOTH);
     bitSet(flag_global, DCDC_PAUSE);
     _cur_charge = 0;
@@ -95,7 +95,7 @@ public:
       bitClear(flag_global, POWERON);
       _tok = 30;
     } else bitSet(flag_global, POWERON);
-#if (POWPIN == 2)    
+#if (POWPIN == 2)
     gio::write(RELAY220, bitRead(flag_global, POWERON));
 #endif
     analogWrite_my(PWMCH, _tok);
@@ -125,15 +125,17 @@ public:
 #endif
 
   void Off(void) {
-    start();    
+    start();
     bitClear(flag_global, DCDC_PAUSE);
 #if (MCP4725DAC)
-    dac.setVoltage(_tok);  // отключаем заряд
+    dac.setVoltage(0);  // отключаем заряд
 #else
-    gio::low(PWMCH);  // отключаем заряд
+    bitClear(TCCR2A, COM2B1);  // Pin 3 PWM disable
+    gio::low(PWMCH);           // отключаем заряд
 #endif
 #if (DISCHAR == 1)
-    gio::low(PWMDCH);  // отключаем разряд
+    bitClear(TCCR2A, COM2A1);  // 11 PWM disable
+    gio::low(PWMDCH);          // отключаем разряд
 #endif
   }
 
@@ -172,7 +174,7 @@ public:
     return _tok;
   }
 #endif
- 
+
 private:
   // список членов для использования внутри класса
   uint16_t _volt_charge;    // напряжение заряда
@@ -186,7 +188,7 @@ private:
 #endif
   int16_t _err_pred;
   float _Integral;
-  uint32_t _time_sec; 
+  uint32_t _time_sec;
 };
 
 extern DCDC dcdc;

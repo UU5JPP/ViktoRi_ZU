@@ -42,7 +42,6 @@ void Statistics_point(uint8_t point);
 void calculate(uint8_t i);
 
 
-
 #if (POWPIN == 1)
 void Relay(void);
 #endif

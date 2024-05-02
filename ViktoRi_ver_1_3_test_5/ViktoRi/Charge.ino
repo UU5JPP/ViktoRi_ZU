@@ -287,10 +287,8 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
 #if (MCP4725DAC)
               if (BitIsClear(flagsz, OSCILZ)) dac.setVoltage(0);
 #else
-              if (BitIsClear(flagsz, OSCILZ)) {
-                gio::low(PWMCH);
-                bitClear(flag_global, DCDC_PAUSE);
-              } else bitSet(flag_global, DCDC_PAUSE);
+              if (BitIsClear(flagsz, OSCILZ)) dcdc.Off();  // отключить заряд, разряд.
+              else bitSet(flag_global, DCDC_PAUSE);
 #endif
             } else v1 = volt_init;
             break;
@@ -612,7 +610,7 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
     }
   }
   // цикл заряда
-  dcdc.Off();  // отключить заряд
+  dcdc.Off();  // отключить заряд, разряд.
 #if (GUARDA0)
   gio::low(PINA0);
 #endif

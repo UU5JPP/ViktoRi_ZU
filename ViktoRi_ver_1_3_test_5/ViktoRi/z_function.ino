@@ -30,8 +30,8 @@ void Storage(bool regim) {
   Guard();  // принудительная блокировка модуля защиты при напряжении заряда или разряда акб менее 5 Вольт.
 #endif
 #if (POWPIN == 1)
-  gio::high(RELAY220);  // включить сеть 220В
-  bitClear(flag_global, RELEY_OFF);    // запрещено отключать реле
+  gio::high(RELAY220);               // включить сеть 220В
+  bitClear(flag_global, RELEY_OFF);  // запрещено отключать реле
 #endif
   Freq(vkr.service[FREQCHARGE]);  // установить частоту работы силового модуля
 
@@ -95,18 +95,17 @@ void Storage(bool regim) {
         gio::high(PIN_13);  // включить пин 13. отключить реле нагрузки
       }
 #if (TIME_LIGHT)
-        if (!regim) disp.Light_low();  // отключение подсветки через 3 минуты в буферном режиме, если разрешено отключение
+      if (!regim) disp.Light_low();  // отключение подсветки через 3 минуты в буферном режиме, если разрешено отключение
 #endif
     }
     // если прошла секунда
   }
   // цикл работы
   gio::low(PIN_13);  // отключить пин 13. отключить реле нагрузки
-  dcdc.Off();
+  dcdc.Off();  // отключить заряд, разряд.
 #if (GUARDA0)
   gio::low(PINA0);  // отключить блокировку модуля защиты
 #endif
-
 }
 
 // расчет токов и напряжений
@@ -148,7 +147,7 @@ void Relay(void) {
   if (ina.voltsec < 9000) {
     // если напряжение подключенной АКБ ниже 9 вольт включается реле 220В.
     gio::high(RELAY220);                                                                          // включить питание реле (подкл. питание от сети 220В)
-    tvin = millis();                                                                                             // запомнить время
+    tvin = millis();                                                                              // запомнить время
   } else if (bitRead(flag_global, RELEY_OFF) and (millis() - tvin > 120000)) gio::low(RELAY220);  // если разрешено отключать реле и прошло 2 минуты то отключить питание реле (откл. питание от сети 220В)
 }
 #endif
@@ -248,8 +247,8 @@ void Korrect(const uint8_t kof) {
     lcd.clear();
   } else {
 #if (POWPIN == 1)
-    gio::high(RELAY220);  // включить сеть 220В
-    bitClear(flag_global, RELEY_OFF);    // запрещено отключать реле
+    gio::high(RELAY220);               // включить сеть 220В
+    bitClear(flag_global, RELEY_OFF);  // запрещено отключать реле
 #endif
   }
   bool x = false;
@@ -301,8 +300,8 @@ void Korrect(const uint8_t kof) {
         switch (kof) {
           case 0:
             if (x) vkr.Ohms = constrain(vkr.Ohms + butt.tick, 0, 255);
-            else vkr.shunt = constrain(vkr.shunt + butt.tick, 10, 10000);  // 1 - 0,1 мОм, 10000 - 100мОм            
-            ina.start(1);  // старт замеров INA
+            else vkr.shunt = constrain(vkr.shunt + butt.tick, 10, 10000);  // 1 - 0,1 мОм, 10000 - 100мОм
+            ina.start(1);                                                  // старт замеров INA
             break;
             // замер напряжения блока питания
 #if (VOLTIN == 1)
@@ -317,8 +316,8 @@ void Korrect(const uint8_t kof) {
         ext = false;
         break;
     }
-  } while (ext);                    // установка напряжения
-  gio::low(PWMDCH);  // отключить разряд
+  } while (ext);     // установка напряжения
+  dcdc.Off();  // отключить заряд, разряд.
 #if (POWPIN == 1)
   bitSet(flag_global, RELEY_OFF);  // разрешено отключать реле
 #endif
@@ -402,12 +401,12 @@ void End(void) {
   lcd.setCursor(0, 2);
   ClearStr(3);
 #endif
-  regim_end = 0;  
+  regim_end = 0;
   Speaker(1000);  // функция звукового сигнала (время в миллисекундах)
-  Delay(1000);      // подождать
-  pauses();       // пауза до нажатия  
-  lcd.clear();  // очистить дисплей
-  Delay(500);      // подождать
+  Delay(1000);    // подождать
+  pauses();       // пауза до нажатия
+  lcd.clear();    // очистить дисплей
+  Delay(500);     // подождать
 }
 
 // функция выбора Stop/OK. (timer - секунд, время через которое возвращается false. Если timer = 0 то возврат из функции по нажатию кнопок/енкодера)
@@ -450,7 +449,7 @@ void Speaker(uint16_t n) {
 // активный звукового сигнала
 #if (SPEAKER == 2)
   gio::high(BUZER);  // включить сигнал
-  Delay(n);                         // подождать n - миллисекунд
+  Delay(n);          // подождать n - миллисекунд
   gio::low(BUZER);   // отключить сигнал
 
 #elif (SPEAKER == 1)
@@ -458,9 +457,9 @@ void Speaker(uint16_t n) {
   uint32_t time2 = millis();
   // звуковой сигнал в течении n миллисекунд
   while (millis() - time2 < n) {
-    gio::high(BUZER);  // HIGH
-    delayMicroseconds(771);           // 2314 - частота 432Гц; 1157 - частота 864Гц; 771 - частота 1296Гц
-    gio::low(BUZER);   // LOW
+    gio::high(BUZER);        // HIGH
+    delayMicroseconds(771);  // 2314 - частота 432Гц; 1157 - частота 864Гц; 771 - частота 1296Гц
+    gio::low(BUZER);         // LOW
     delayMicroseconds(771);
   }
 #endif
@@ -585,7 +584,6 @@ void Serial_out(float volt, float amperSred, uint8_t tQ1, float Achas) {
   Serial.println(";");                // Знак переноса строки.00
 }
 #endif
-
 
 /*
 // ===================== FLAGS Button======================

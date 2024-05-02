@@ -161,7 +161,7 @@ void Discharge() {
     // выполнить раз в секунду
   }
   // цикл разряда
-  dcdc.Off();  // отключаем разряд
+  dcdc.Off();  // отключить заряд, разряд.
 #if (GUARDA0)
   gio::low(PINA0);
 #endif
@@ -190,7 +190,7 @@ void Resist() {
   do {
     sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.
     if (butt.tick == ENCHELD or butt.tick == STOPCLICK) {
-      gio::low(PWMDCH);  // отключить разряд
+      dcdc.Off();  // отключить заряд, разряд.
       return;
     }
     if (sekd.tick()) {
@@ -203,11 +203,12 @@ void Resist() {
   I[0] = abs(ina.ampersec);
   U[0] = ina.voltsec;
   // uint32_t t = millis();
+  dcdc.Off();  // отключить заряд, разряд.
   gio::high(PWMDCH);  // включить максимальный ток
   Delay(1000);                       // ожидание
   I[1] = abs(ina.ampersec);          // чтение тока ina.amperms
   U[1] = ina.voltsec;                // чтение напряжения ina.voltms
-  gio::low(PWMDCH);   // отключить разряд
+  dcdc.Off();  // отключить заряд, разряд.
   setCursory();
   PrintVA(U[1], I[1], 0, 0, 2);                         // *12.36V 3.55A    *
   Delay(3000);                                          // ожидание 3 сек

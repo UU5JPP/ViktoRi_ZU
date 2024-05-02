@@ -11,15 +11,12 @@ public:
   void Light_setTime() {
     _light_tm = (uint32_t)vkr.service[TIMELIGHT] * 60000;  // установить время подсветки
   }
-  #endif
 
   void Light_high(void) {
     lcd.setBacklight(true);  // включение подсветки
-    #if (TIME_LIGHT)
     _light_time = millis();  // старт отсчета времени подсветки
-    #endif
   }
-#if (TIME_LIGHT)
+
   void Light_low(void) {
     if (vkr.service[TIMELIGHT] and (millis() - _light_time > _light_tm)) lcd.setBacklight(false);  // если разрешено отключение подсветки и время вышло отключение подсветки
   }
