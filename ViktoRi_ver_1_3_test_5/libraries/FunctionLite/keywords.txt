@@ -1,0 +1,15 @@
+#######################################
+# Syntax Coloring Map For FunctionLite
+#######################################
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+analogReference_my  KEYWORD2
+analogPrescaler_my  KEYWORD2
+analogRead_my       KEYWORD2
+digitalWrite_speed	KEYWORD2
+analogWrite_my	    KEYWORD2
+pinMode_my	        KEYWORD2
+digitalRead_speed	KEYWORD2
+RegRead_my          KEYWORD2
