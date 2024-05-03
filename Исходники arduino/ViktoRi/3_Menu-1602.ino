@@ -16,9 +16,6 @@ void Menu1602() {
   int8_t x = 0;
   sekd.start();
   ina.start(1);  // старт замеров INA
-#if (VOLTIN == 1)
-  vin.start();  // старт замеров напряжения от БП
-#endif
   do {
     // цикл меню
     switch (urovenmenu) {

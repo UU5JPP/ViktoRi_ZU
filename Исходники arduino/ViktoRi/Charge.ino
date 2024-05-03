@@ -1,12 +1,10 @@
-// флаги управления зарядом
 /*
-#define CHARGEZ 0  // заряд включен
-#define OSCILZ 1   // осциляция
-#define TAKBZ 2    // температура акб
-#define KORR 3     // корректировка напряжения и тока заряда
-#define KORRVA 4   // изменение вольт или ампер
-#define POWOFF 5   // питание вкл/откл
-#define VMAXM 7    // напряжение достигло максимума
+флаги управления зарядом
+CHARGEZ 0  // заряд включен
+OSCILZ 1   // осциляция
+KORR 2     // корректировка напряжения и тока заряда
+KORRVA 3   // изменение вольт или ампер
+VMAXM 4    // напряжение достигло максимума
 */
 
 struct VA_var {
@@ -90,8 +88,8 @@ struct Tyme {
 
 // Функция заряда. volt_charge_init - напряжение заряда, curr_charge_init - ток заряда, curr_min - минимальный ток заряда, time_charge - время заряда в часах, add_charge - дозаряд вкл/откл
 void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr_min, uint32_t time_charge, bool add_charge) {
-  enum {CHARGEZ = 0, OSCILZ, TAKBZ, KORR, KORRVA, POWOFF, VMAXM};
-  bitSet(flag_global, DCDCMODE);  // режим dcdc - Заряд
+  enum {CHARGEZ = 0, OSCILZ, KORR, KORRVA, POWOFF, VMAXM};
+  uint8_t flagsz = 0b00001011;  // флаги
   //вывод режима, напряжения и тока заряда/разряда
 #if (GUARDA0)
   Guard();  // принудительная блокировка модуля защиты при напряжении заряда или разряда акб менее 5 Вольт.
@@ -138,17 +136,17 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
   uint8_t logg = LOGGTIME;  // период отправки данных в сетевой порт
 #endif
   const int x[] = { (int)(&settings[14]), (int)(&modeTxt[0]), (int)(&modeTxt[3]), (int)(&settings[17]), (int)(&modeTxt[2]) };  // {предварительный заряд, заряд, дозаряд, Качели, Бранимир}
-  uint8_t flagsz = 0b00110111;  // флаги
+
   uint8_t q1 = 0;  // количество проверок силового транзистора 2
+  ina.start(1);  // старт замеров INA
   Delay(3000);
   lcd.clear();
 #if (VOLTIN == 1)
   uint16_t vin_volt;
-  vin.start();  // старт замеров напряжения от БП
 #endif
   sekd.start();  // старт отсчета времени одна секунда
-  ina.start(1);  // старт замеров INA
-  dcdc.start();
+  
+  dcdc.start(DCDC_CHARGE); 
   tyme.real = millis();  // запоминаем текущее время заряда
   // цикл заряда
   while (bitRead(flagsz, CHARGEZ) and bitRead(pam.MyFlag, CHARGE)) {
@@ -198,8 +196,6 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
         }
       }
     }
-
-    (bitRead(flagsz, OSCILZ)) ? bitSet(flag_global, DCDC_PAUSE) : bitClear(flag_global, DCDC_PAUSE);
 
     switch (time_millis) {
       case 0:
@@ -282,8 +278,7 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
 #if (MCP4725DAC)
               if (BitIsClear(flagsz, OSCILZ)) dac.setVoltage(0);
 #else
-              if (BitIsClear(flagsz, OSCILZ)) dcdc.Off();  // отключить заряд, разряд.
-              else bitSet(flag_global, DCDC_PAUSE);
+              dcdc.pause(bitRead(flagsz, OSCILZ));// отключить заряд, разряд.
 #endif
             } else v1 = volt_init;
             break;

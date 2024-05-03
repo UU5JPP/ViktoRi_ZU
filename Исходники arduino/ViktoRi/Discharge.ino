@@ -1,7 +1,6 @@
 #if (DISCHAR == 1)
 //Функция разряда аккумулятора
-void Discharge() {
-  bitClear(flag_global, DCDCMODE);  // режим dcdc - Разряд
+void Discharge() {  
   //вывод режима, напряжения и тока заряда/разряда
   PrintVA(pam.Volt_discharge, pam.Current_discharge, 0, 0, 1);  // напряжения и тока разряда
   printCykl();                                                  // вывод количества циклов
@@ -12,23 +11,22 @@ void Discharge() {
 
   uint8_t time_millis = 0;
   Tyme tyme;
-  tyme.local = pam.Time_discharge;
+  tyme.local = pam.Time_discharge;  
+  dcdc.begin(pam.Volt_discharge, pam.Current_discharge); // задает напряжение и ток разряда
 
 #if (LOGGER)
   uint8_t logg = LOGGTIME;  // период отправки данных в сетевой порт
 #endif
+  ina.start(2);           // старт замеров INA
   Delay(3000);
 
 #if (POWPIN == 1)
   bitSet(flag_global, RELEY_OFF);  // разрешено отключать реле
 #endif
-#if (VOLTIN == 1)
-  vin.start();  // старт замеров напряжения от БП
-#endif
   uint16_t time10 = 600;  // выполнить раз в 600 сек (10 мин)
   sekd.start();           // старт отсчета времени одна секунда
-  ina.start(2);           // старт замеров INA
-  dcdc.start();
+  
+  dcdc.start(DCDC_DISCHARGE);
   tyme.real = millis();  // запоминаем текущее время
   // цикл разряда 35 часов максимум
   while (dischar and bitRead(pam.MyFlag, CHARGE) and pam.Time_discharge < 126000) {
@@ -182,14 +180,12 @@ void Resist() {
     print_mode(2);  // "error"
     Delay(1000);
     return;
-  }
-  Freq(EEPROM.read(8 + FREQDISCHAR));  // установить частоту работы разрядного модуля (4 кГц по умолчанию)
+  }  
   uint16_t U[2] = { 0 };
   int16_t I[2] = { 0 };
   uint8_t timer = 8;  // время первого замера сек.
   Fixcurrent(400);    // установить ток разряда мА
   sekd.start();       // старт отсчета времени одна секунда
-  ina.start(2);       // старт замеров INA
   //выполнять 10 сек
   do {
     sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.
@@ -207,11 +203,13 @@ void Resist() {
   I[0] = abs(ina.ampersec);
   U[0] = ina.voltsec;
   dcdc.Off();                // отключить заряд, разряд.
+  //bitClear(pam.MyFlag, CHARGE);
   gio::high(PWMDCH);         // включить максимальный ток
   Delay(1000);               // ожидание
   I[1] = abs(ina.ampersec);  // чтение тока ina.amperms
   U[1] = ina.voltsec;        // чтение напряжения ina.voltms
-  dcdc.Off();                // отключить заряд, разряд.
+ // dcdc.Off();                // отключить заряд, разряд.
+  gio::low(PWMDCH);          // отключить ток
   setCursory();
   PrintVA(U[1], I[1], 0, 0, 2);                         // *12.36V 3.55A    *
   Delay(3000);                                          // ожидание 3 сек

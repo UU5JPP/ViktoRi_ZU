@@ -1,6 +1,8 @@
 #include "Arduino.h"
 #include "FunctionLite.h"
 
+#define DCDC_CHARGE true      // заряд
+#define DCDC_DISCHARGE false  // разряд
 // класс управления DC-DC модулем
 class DCDC {
 public:
@@ -12,61 +14,32 @@ public:
   void begin(uint16_t volt_charge, int16_t cur_charge) {
     _volt_charge = volt_charge;
     _cur_charge_max = cur_charge;
-    if (BitIsClear(flag_global, DCDC_SMOOTH)) _cur_charge = cur_charge;
+    if (BitIsClear(_flags, Smooth)) _cur_charge = cur_charge;  // если отключен плавный пуск
   }
 
-  void start(void) {
+  void start(bool mods) {
     _cur_max = CURRMAXINT;
     _err_pred = 0;
     _Integral = 0.0;
-    bitSet(flag_global, DCDC_SMOOTH);
-    bitSet(flag_global, DCDC_PAUSE);
     _cur_charge = 0;
     _tok = 0;
+    _flags = 0b00000011;           // флаги // 0 пауза, 1 плавный пуск, 2 режим (заряд/ разряд)
+    bitWrite(_flags, Mode, mods);  // установить режим работы заряд/разряд
     _time_sec = millis();
   }
 
-#if (MCP4725DAC)
-  // регулировка напряжения и тока
-  void Control() {
-    if (bitRead(pam.MyFlag, CHARGE) and bitRead(flag_global, DCDC_PAUSE) and bitRead(flag_global, POWERON) and BitIsClear(flag_global, POWERHIGH)) {
-      if (ina.isAlert() or abs(ina.amperms) >= _cur_max) _tok = constrain(_tok - 10, 0, 4095);
-      else {
-        // плавный пуск - плавное увеличение тока заряда
-        if (millis() - _time_sec > 1000) {
-          _time_sec = millis();
-          if (bitRead(flag_global, DCDC_SMOOTH)) {
-            _cur_charge = constrain(_cur_charge + 300, 0, _cur_charge_max);  // 300 мА/сек
-            if (_cur_charge == _cur_charge_max) bitClear(flag_global, DCDC_SMOOTH);
-          }
-        }
-        int16_t volt_err = (int16_t)_volt_charge - (int16_t)ina.voltms;
-        int16_t amp_err = _cur_charge - ina.amperms;  // величина ошибки по току
-        int16_t err = (volt_err < amp_err) ? volt_err : amp_err;
-
-        float P = 0.001f * err;
-        _Integral += P;                                   // 0.001f * err;
-        float D = (float)(err - _err_pred) * 5 * 0.0001;  //  / 0.2 сек
-        _err_pred = err;
-
-        _tok = constrain(trunc(P + _Integral - D), 0, 4095);  // регулировка тока   0.012
-      }
-      dac.setVoltage(_tok);
-    }
-  }
-#else
-
   // регулировка напряжения и тока заряда
   void Control(void) {
-    if (bitRead(pam.MyFlag, CHARGE) and bitRead(flag_global, DCDC_PAUSE) and bitRead(flag_global, POWERON) and BitIsClear(flag_global, POWERHIGH)) {
-      if (abs(ina.amperms) >= _cur_max) _tok = constrain(_tok - 1, 0, 255);
+    if (bitRead(pam.MyFlag, CHARGE) and bitRead(_flags, Pause) and BitIsClear(flag_global, POWERHIGH)) {
+      if (bitRead(_flags, Mode) and BitIsClear(flag_global, POWERON)) return;  // если включен заряд а напряжения от БП нет
+      if (abs(ina.amperms) >= _cur_max and _tok > 0) _tok--;
       else {
         if (millis() - _time_sec > 1000) {
           _time_sec = millis();
-          // плавный пуск - плавное увеличение тока заряда
-          if (bitRead(flag_global, DCDC_SMOOTH)) {
+          // плавный пуск - плавное увеличение тока заряда/разряда
+          if (bitRead(_flags, Smooth)) {
             _cur_charge = constrain(_cur_charge + 300, 0, _cur_charge_max);  // 300 мА/сек
-            if (_cur_charge == _cur_charge_max) bitClear(flag_global, DCDC_SMOOTH);
+            if (_cur_charge == _cur_charge_max) bitClear(_flags, Smooth);    // отключить плавный пуск
           } else {
 #if (SENSTEMP1 and GUARDTEMP)
             // если превышена температура то уменьшаем ток иначе увеличиваем
@@ -74,59 +47,39 @@ public:
 #endif
           }
         }
-        int16_t volt_err = (int16_t)_volt_charge - (int16_t)ina.voltms;  // величина ошибки по напряжению
-        int16_t amp_err = _cur_charge - ina.amperms;                     // величина ошибки по току
-        int16_t err = (volt_err < amp_err) ? volt_err : amp_err;         // регулируем напряжение или ток
 
-        float P = 0.001f * err;
-        _Integral += P;  // 0.001f * err;
-        float D = (float)(err - _err_pred) * 5 * 0.0001;
-        _err_pred = err;
+        int16_t volt_err = bitRead(_flags, Mode) ? (int16_t)_volt_charge - (int16_t)ina.voltms : (int16_t)ina.voltms - (int16_t)_volt_charge;  // величина ошибки по напряжению
+        int16_t amp_err = _cur_charge - abs(ina.amperms);                                                                                      // величина ошибки по току
+        int16_t err = (volt_err < amp_err) ? volt_err : amp_err;                                                                               // регулируем напряжение или ток
 
-        _tok = constrain(trunc(P + _Integral - D), 0, 255);  // регулировка тока
+        if (bitRead(_flags, Mode)) {
+          // заряд
+          float P = 0.001f * err;
+          _Integral += P;  // 0.001f * err;
+          float D = (float)(err - _err_pred) * 5 * 0.0001;
+          _err_pred = err;
+#if (MCP4725DAC)
+          _tok = constrain(trunc(P + _Integral - D), 0, 4095);  // регулировка тока
+#else
+          _tok = constrain(trunc(P + _Integral - D), 0, 255);  // регулировка тока
+#endif
+        } else {
+          // разряд
+          _Integral += err * 0.001f;
+          _tok = constrain(trunc(_Integral), 0, 255);
+        }
       }
-#if (VOLTIN == 1)
-      analogWrite_my(PWMCH, _tok);
+#if (MCP4725DAC)
+      bitRead(_flags, Mode) ? dac.setVoltage(_tok) : analogWrite_my(PWMDCH, _tok);
+#else
+      analogWrite_my((bitRead(_flags, Mode) ? PWMCH : PWMDCH), _tok);
 #endif
     }
-#if (VOLTIN == 0)
-    // проверяет если есть питание от БП
-    if (ina.amperms < 0 and _tok > 20) {
-      bitClear(flag_global, POWERON);
-      _tok = 30;
-    } else bitSet(flag_global, POWERON);
-#if (POWPIN == 2)
-    gio::write(RELAY220, bitRead(flag_global, POWERON));
-#endif
-    analogWrite_my(PWMCH, _tok);
-#endif
   }
 
-  void control_alert(void) {
-    if (gio::read(4)) _tok = constrain(_tok - 1, 0, 255);
-    else _tok = constrain(_tok + 1, 0, 255);
-    analogWrite_my(PWMCH, _tok);
-  }
-
-#endif
-
-// регулировка напряжения и тока разряда
-#if (DISCHAR == 1)
-  void Control_dich(void) {
-    // разряд
-    if (bitRead(pam.MyFlag, CHARGE) and bitRead(flag_global, DCDC_PAUSE) and BitIsClear(flag_global, POWERHIGH)) {
-      int16_t volt_err = (int16_t)ina.voltms - (int16_t)pam.Volt_discharge;  // величина ошибки по напряжению
-      int16_t amp_err = pam.Current_discharge - abs(ina.amperms);            // величина ошибки по току
-      int16_t err = (volt_err < amp_err) ? volt_err : amp_err;               // регулируем напряжение или ток
-      _Integral += err * 0.001f;
-      analogWrite_my(PWMDCH, (constrain(trunc(_Integral), 0, 255)));
-    }
-  }
-#endif
-
-  void Off(void) {
-    start();
-    bitClear(flag_global, DCDC_PAUSE);
+  void pause(bool x) {
+    bitWrite(_flags, Pause, x);
+    if (x) return;
 #if (MCP4725DAC)
     dac.setVoltage(0);  // отключаем заряд
 #else
@@ -137,6 +90,11 @@ public:
     bitClear(TCCR2A, COM2A1);  // 11 PWM disable
     gio::low(PWMDCH);          // отключаем разряд
 #endif
+  }
+
+  void Off(void) {
+    start(DCDC_CHARGE);
+    pause(false);
   }
 
   void setVolt_charge(uint16_t v) {
@@ -189,6 +147,9 @@ private:
   int16_t _err_pred;
   float _Integral;
   uint32_t _time_sec;
+
+  uint8_t _flags = 0b00000000;  // флаги
+  enum { Pause = 0, Smooth, Mode };  // пауза, плавный пуск, режим (заряд/ разряд)
 };
 
 extern DCDC dcdc;

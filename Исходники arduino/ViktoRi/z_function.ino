@@ -3,8 +3,7 @@ void sensor_survey(void) {
   butt.Tick();  // опрос кнопок и энкодера
 
   if (ina.sample()) {
-    if (bitRead(flag_global, DCDCMODE)) dcdc.Control();  // регулировка тока и напряжения
-    else dcdc.Control_dich();
+    dcdc.Control();  // регулировка тока и напряжения
 #if (VOLTIN == 1)
     vin.sample();  // чтение сырых данных с аналогового пина с усреднением - напряжения БП
 #endif
@@ -29,7 +28,6 @@ void sensor_survey(void) {
 
 // функция хранения акб и буферного режима
 void Storage(bool regim) {
-  bitSet(flag_global, DCDCMODE);  // режим dcdc - Заряд
   bool ext = true;
   bool vvmin = true;                       // флаг отключения нагрузки
   uint32_t t_st = 0;                       // время хранения
@@ -51,13 +49,9 @@ void Storage(bool regim) {
     dcdc.begin(vlt, amp);  // задать максимальные значения напряжения и тока заряда
   }
   if (!regim) gio::high(PIN_13);  // включить пин 13. Включить реле нагрузки
-#if (VOLTIN == 1)
-  vin.start();  // старт замеров напряжения от БП
-#endif
-
-  sekd.start();  // старт отсчета времени одна секунда
-  ina.start(1);  // старт замеров INA
-  dcdc.start();
+  sekd.start();                   // старт отсчета времени одна секунда
+  ina.start(1);                   // старт замеров INA
+  dcdc.start(DCDC_CHARGE);
   while (ext) {
     // цикл работы
     sensor_survey();                                                 // опрос кнопок, INA226, напря. от БП., контроль dcdc.
@@ -228,7 +222,8 @@ void Fixcurrent(int16_t amp) {
   PrintVA(0, amp, 0, 0, 2);
   float Integ = 0.0;
   uint32_t t = millis();
-  ina.start(2);  // старт замеров INA
+  Freq(EEPROM.read(8 + FREQDISCHAR));  // установить частоту работы разрядного модуля (4 кГц по умолчанию)
+  ina.start(2);                        // старт замеров INA
   do {
     // увеличение тока разряда
     butt.Tick();
@@ -251,7 +246,6 @@ void Korrect(const uint8_t kof) {
 #endif
   lcd.clear();
   if (!kof) {
-    Freq(EEPROM.read(8 + FREQDISCHAR));  // установить частоту работы разрядного модуля (4 кГц по умолчанию)
     lcd.print(F(txt11));
     Fixcurrent(2100);  // установить ток разряда 1000мА
     lcd.clear();
@@ -264,10 +258,6 @@ void Korrect(const uint8_t kof) {
   bool x = false;
   bool ext = true;
   sekd.start();  // старт отсчета времени
-  ina.start(2);  // старт замеров INA
-#if (VOLTIN == 1)
-  vin.start();  // старт замеров напряжения от БП
-#endif
   do {
     // установка напряжения
     do {
@@ -492,13 +482,14 @@ uint8_t Percentage(uint16_t volt_max, uint16_t volt, int16_t current, int16_t cu
 
 #if (CORRECTCUR == 1 and SENSTEMP2 == 2)
 // контроль температуры Акб с датчика NTC подключенного к пин А6 Ардуино
-void Control_trAkb() {
+void Control_trAkb(void) {
   bool tr = true;
   if (ntc.akb > 40) tr = false;
   else if (pam.typeAkb <= 4 and ntc.akb < -15) tr = false;
   else if ((pam.typeAkb <= 6 or pam.typeAkb == 8) and ntc.akb < 10) tr = false;
-  bitWrite(flag_global, DCDC_PAUSE, tr);  // остановить заряд
-  if (!tr) {
+  if (tr) dcdc.pause(tr);
+  else {
+    dcdc.Off();  // остановить заряд
     lcd.clear();
     Speaker(1000);       // функция звукового сигнала (время в миллисекундах)
     lcd.print(F(txt9));  // "Temp akb:"

@@ -128,7 +128,7 @@ void Display_print(int32_t Ah, int32_t Wh, uint32_t time_real, int8_t tr, uint8_
 #endif
 #if (SENSTEMP2 == 2)
     print_tr(ntc.akb);                                                                                              // температура акб
-#endif
+#endif  // температура
     lcd.setCursor(DISPLAYx - 1, 3);
     lcd.write((akb ? map(prc, 0, 100, 0, 6) : ((pam.Mode == 4) ? 32 : 7)));  // знак акб - значек заряда -  пробел
     akb = !akb;

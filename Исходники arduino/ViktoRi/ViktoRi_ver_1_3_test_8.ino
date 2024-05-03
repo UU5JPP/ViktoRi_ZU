@@ -10,12 +10,9 @@ uint8_t flag_global = 0b00000010;
 #endif
 #define POWERHIGH 0    // превышение напряжения питания
 #define POWERON 1      // питание от БП поступает
-#define DCDCMODE 2     // заряд/разряд
-#define TR_Q1_ERR 3    // превышена температура на силовом транзисторе
-#define DCDC_SMOOTH 4  // плавный пуск
-#define DCDC_PAUSE 5   // пауза работы dcdc модуля
-#define DISP_LIGHT 6   // разрешено отключать подсветку дисплея
-#define RELEY_OFF 7    // разрешено отключать реле
+#define TR_Q1_ERR 2    // превышена температура на силовом транзисторе
+#define DISP_LIGHT 3   // разрешено отключать подсветку дисплея
+#define RELEY_OFF 4    // разрешено отключать реле
 
 #if (SENSTEMP1 == 1)
 #include <microDS18B20.h>      // Библиотека датчика температуры DS18B20.
@@ -380,6 +377,9 @@ void setup() {
     print_mode(2);  // "error"
     Delay(1500);
   }
+#endif
+#if (VOLTIN == 1)
+  vin.start();  // старт замеров напряжения от БП
 #endif
 #if (FAN)
   kul.begin();  // инициализация кулера
