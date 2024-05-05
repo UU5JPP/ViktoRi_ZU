@@ -252,7 +252,7 @@ void Menu1602() {
             case 8:
               // калибровка
               Korrect(point_setting);
-              Saved();  // сохранить настройки
+              //Saved();  // сохранить настройки
               urovenmenu = 1;
               printx = true;
               break;

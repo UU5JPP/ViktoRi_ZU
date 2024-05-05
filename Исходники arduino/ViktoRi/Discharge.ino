@@ -208,7 +208,6 @@ void Resist() {
   Delay(1000);               // ожидание
   I[1] = abs(ina.ampersec);  // чтение тока ina.amperms
   U[1] = ina.voltsec;        // чтение напряжения ina.voltms
- // dcdc.Off();                // отключить заряд, разряд.
   gio::low(PWMDCH);          // отключить ток
   setCursory();
   PrintVA(U[1], I[1], 0, 0, 2);                         // *12.36V 3.55A    *
@@ -222,8 +221,9 @@ void Resist() {
     pam.Resist_2 = (uint16_t)((uint32_t)bat.Volt(3) * 100 / r);  // расчет пускового тока - напряжение делить на сопротивление
     lcd.print(pam.Resist_2);
     lcd.write(65);  // А
+    ClearStr(3);
   }
-  ClearStr(5);
+  //ClearStr(5);
   Delay(7000);  // ожидание
 }
 #endif

@@ -318,6 +318,7 @@ void Korrect(const uint8_t kof) {
     }
   } while (ext);  // установка напряжения
   dcdc.Off();     // отключить заряд, разряд.
+  EEPROM.put(1, vkr);
 #if (POWPIN == 1)
   bitSet(flag_global, RELEY_OFF);  // разрешено отключать реле
 #endif
@@ -457,9 +458,9 @@ void Speaker(uint16_t n) {
   // звуковой сигнал в течении n миллисекунд
   while (millis() - time2 < n) {
     gio::high(BUZER);        // HIGH
-    delayMicroseconds(771);  // 2314 - частота 432Гц; 1157 - частота 864Гц; 771 - частота 1296Гц
+    delayMicroseconds(300);  // 2314 - частота 432Гц; 1157 - частота 864Гц; 771 - частота 1296Гц
     gio::low(BUZER);         // LOW
-    delayMicroseconds(771);
+    delayMicroseconds(471);
   }
 #endif
   return;
@@ -483,21 +484,46 @@ uint8_t Percentage(uint16_t volt_max, uint16_t volt, int16_t current, int16_t cu
 #if (CORRECTCUR == 1 and SENSTEMP2 == 2)
 // контроль температуры Акб с датчика NTC подключенного к пин А6 Ардуино
 void Control_trAkb(void) {
-  bool tr = true;
-  if (ntc.akb > 40) tr = false;
-  else if (pam.typeAkb <= 4 and ntc.akb < -15) tr = false;
-  else if ((pam.typeAkb <= 6 or pam.typeAkb == 8) and ntc.akb < 10) tr = false;
-  if (tr) dcdc.pause(tr);
-  else {
-    dcdc.Off();  // остановить заряд
+  if (bitRead(flag_global, TEMP_AKB)) {
+    if (ntc.akb > 40) bitClear(flag_global, TEMP_AKB);
+    else if (pam.typeAkb <= 4 and ntc.akb < -15) bitClear(flag_global, TEMP_AKB);
+    else if ((pam.typeAkb <= 6 or pam.typeAkb == 8) and ntc.akb < 10) bitClear(flag_global, TEMP_AKB);
+  }
+
+  if (BitIsClear(flag_global, TEMP_AKB)) {
+    dcdc.stop();  // остановить заряд
+#if (TIME_LIGHT)
+    disp.Light_high();  // включение подсветки
+#endif
+    lcd.clear();
+    lcd.print(F(txt9));  // "Temp akb:"
+    Speaker(1000);       // функция звукового сигнала (время в миллисекундах)
+    uint32_t sek = 0;
+    do {
+      sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.  // and !butt.tick
+      if (butt.tick) {
+        bitClear(pam.MyFlag, CHARGE);
+        return;
+      }
+      if (millis() - sek >= 3000) {
+        sek = millis();
+        lcd.setCursor(9, 0);
+        lcd.print(ntc.akb);
+        printSimb();  // пробел
+        setCursory();
+        PrintVA(ina.voltsec, ina.ampersec, 0, 0, 3);
+
+        if (ntc.akb < 37) {
+          if (pam.typeAkb <= 4 and ntc.akb > -14) bitSet(flag_global, TEMP_AKB);
+          else if ((pam.typeAkb <= 6 or pam.typeAkb == 8) and ntc.akb > 11) bitSet(flag_global, TEMP_AKB);
+        }
+      }
+    } while (BitIsClear(flag_global, TEMP_AKB));
     lcd.clear();
     Speaker(1000);       // функция звукового сигнала (время в миллисекундах)
-    lcd.print(F(txt9));  // "Temp akb:"
-    lcd.print(ntc.akb);
-    //pauses();
-    Delay(30000);  // пауза 30 сек
   }
 }
+
 /*
 bool Control_trAkb() {
   bool tr = true;  // вернуть если температура акб в норме

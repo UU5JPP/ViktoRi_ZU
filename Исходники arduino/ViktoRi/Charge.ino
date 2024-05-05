@@ -570,7 +570,7 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
       case 5:
         //проверка на то что силовой транзистор пробит
         q1 = (dcdc.getTok() == 0 and ina.ampersec > 100) ? q1 + 1 : 0;
-        if (q1 > 2) bitWrite(pam.MyFlag, CHARGE, Q1_broken());  // если количество проверок превысило 2 то запустить функцию
+        if (q1 > 2) Q1_broken();  // если количество проверок превысило 2 то запустить функцию
         break;
         //     case 4:
 

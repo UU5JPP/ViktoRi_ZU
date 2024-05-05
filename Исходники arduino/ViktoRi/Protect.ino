@@ -1,10 +1,10 @@
 
  // функция если пробит силовой транзистор
-bool Q1_broken() { 
+void Q1_broken(void) { 
 #if (TIME_LIGHT) 
   disp.Light_high();  // включение подсветки
 #endif
-  bitWrite(vkr.GlobFlag, TRQ1, false);
+  bitSet(vkr.GlobFlag, TRQ1);
   dcdc.Off();
 #if (GUARDA0)
   gio::low(PINA0);  // разблокировать защитный модуль
@@ -18,24 +18,27 @@ bool Q1_broken() {
 
   Saved(); // сохранить настройки
   lcd.clear();
-  lcd.print(F(txt24));  //"!!-BROKEN Q1-!!"  
-  
+  lcd.print(F(txt24));  //"!!-BROKEN Q1-!!" 
+
+  pauses();
+
+/*  
   do {
     Speaker(1000);  // функция звукового сигнала (время в миллисекундах)
     Delay(10000); // ждать 10 секунд
   } while (!butt.tick);  // ожидание нажатия
+*/
   
-  bitWrite(vkr.GlobFlag, TRQ1, Choice(60, false)); // при нажатии OK записать в память что транзистор исправен, // при нажатии стоп (чрез 60 секунд)записать в память что транзистор пробит
+  bitClear(vkr.GlobFlag, TRQ1); // при нажатии записать в память что транзистор исправен
   Saved(); // сохранить настройки
 #if (PROT == 1)
-  if (BitIsClear(vkr.GlobFlag, TRQ1)) gio::low(PROTECT); // открыть защитный транзистор Q4
+  gio::low(PROTECT); // открыть защитный транзистор Q4
 #endif
 #if (POWPIN == 1)
-  if (BitIsClear(vkr.GlobFlag, TRQ1)) gio::high(RELAY220);    // включить сеть 220В
+  gio::high(RELAY220);    // включить сеть 220В
 #endif
 #if (GUARDA0)
   Guard();  // принудительная блокировка модуля защиты при напряжении заряда или разряда акб менее 5 Вольт.
 #endif
-  lcd.clear();
-  return bitRead(vkr.GlobFlag, TRQ1);
+  lcd.clear();  
 }

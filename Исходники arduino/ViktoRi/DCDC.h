@@ -30,7 +30,7 @@ public:
 
   // регулировка напряжения и тока заряда
   void Control(void) {
-    if (bitRead(pam.MyFlag, CHARGE) and bitRead(_flags, Pause) and BitIsClear(flag_global, POWERHIGH)) {
+    if (bitRead(pam.MyFlag, CHARGE) and bitRead(_flags, Pause) and bitRead(flag_global, POWERHIGH) and bitRead(flag_global, TEMP_AKB)) {
       if (bitRead(_flags, Mode) and BitIsClear(flag_global, POWERON)) return;  // если включен заряд а напряжения от БП нет
       if (abs(ina.amperms) >= _cur_max and _tok > 0) _tok--;
       else {
@@ -77,10 +77,8 @@ public:
     }
   }
 
-  void pause(bool x) {
-    bitWrite(_flags, Pause, x);
-    if (x) return;
-#if (MCP4725DAC)
+  void stop(void) {
+    #if (MCP4725DAC)
     dac.setVoltage(0);  // отключаем заряд
 #else
     bitClear(TCCR2A, COM2B1);  // Pin 3 PWM disable
@@ -90,6 +88,11 @@ public:
     bitClear(TCCR2A, COM2A1);  // 11 PWM disable
     gio::low(PWMDCH);          // отключаем разряд
 #endif
+  }
+
+  void pause(bool x) {
+    bitWrite(_flags, Pause, x);
+    if (!x) stop();
   }
 
   void Off(void) {

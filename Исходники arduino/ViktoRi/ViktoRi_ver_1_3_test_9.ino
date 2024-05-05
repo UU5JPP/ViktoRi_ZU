@@ -4,15 +4,16 @@
 #include <EEPROM.h>
 
 #if (VOLTIN == 1)
-uint8_t flag_global = 0b00000000;
+uint8_t flag_global = 0b00100000;
 #else
-uint8_t flag_global = 0b00000010;
+uint8_t flag_global = 0b00100010;
 #endif
-#define POWERHIGH 0    // превышение напряжения питания
+#define POWERHIGH 0    // напряжение блока питания (true - напряжения питания в норме)
 #define POWERON 1      // питание от БП поступает
 #define TR_Q1_ERR 2    // превышена температура на силовом транзисторе
-#define DISP_LIGHT 3   // разрешено отключать подсветку дисплея
+//#define DISP_LIGHT 3   // разрешено отключать подсветку дисплея
 #define RELEY_OFF 4    // разрешено отключать реле
+#define TEMP_AKB 5     // температура акб (true - в норме)
 
 #if (SENSTEMP1 == 1)
 #include <microDS18B20.h>      // Библиотека датчика температуры DS18B20.
@@ -310,7 +311,7 @@ void setup() {
   gio::mode(POWIN, INPUT);  // пин замера напряжения от БП
     // настройка АЦП
   analogReference_my(DEFAULT);  // Установка напр реф /INTERNAL
-  analogPrescaler_my(8);       // установка количества выборки АЦП - 2,4,8,16,32,64,128
+  analogPrescaler_my(16);       // установка количества выборки АЦП - 2,4,8,16,32,64,128
 #endif
 
 #if (LOGGER)
@@ -384,7 +385,7 @@ void setup() {
 #if (FAN)
   kul.begin();  // инициализация кулера
 #endif
-  if (BitIsClear(vkr.GlobFlag, TRQ1)) Q1_broken();
+  if (bitRead(vkr.GlobFlag, TRQ1)) Q1_broken();
   // если заряд не был завершен корректно
   if (bitRead(pam.MyFlag, CHARGE)) {
     lcd.clear();

@@ -54,7 +54,7 @@ bool akb = true;
 // функция вывод на дисплей
 #if ((DISPLAYx == 16 and DISPLAYy == 2) or (DISPLAYx == 20 and DISPLAYy == 2))
 void Display_print(int32_t Ah, uint32_t time_real, uint8_t prc, bool add) {
-  if (bitRead(flag_global, POWERHIGH)) {
+  if (BitIsClear(flag_global, POWERHIGH)) {
 #if (TIME_LIGHT)
     disp.Light_high();  // включение подсветки
 #endif
@@ -89,7 +89,7 @@ void Display_print(int32_t Ah, uint32_t time_real, uint8_t prc, bool add) {
 #elif (DISPLAYx == 20 and DISPLAYy == 4)
 // функция вывод на дисплей 20*4
 void Display_print(int32_t Ah, int32_t Wh, uint32_t time_real, int8_t tr, uint8_t prc) {
-  if (bitRead(flag_global, POWERHIGH)) {
+  if (BitIsClear(flag_global, POWERHIGH)) {
 #if (TIME_LIGHT)
     disp.Light_high();  // включение подсветки
 #endif
@@ -144,7 +144,7 @@ void Display_print(int32_t Ah, int32_t Wh, uint32_t time_real, int8_t tr, uint8_
 #elif (DISPLAYx == 16 and DISPLAYy == 4)
 // функция вывод на дисплей 20*4
 void Display_print(int32_t Ah, int32_t Wh, uint32_t time_real, int8_t tr, uint8_t prc) {
-  if (bitRead(flag_global, POWERHIGH)) {
+  if (BitIsClear(flag_global, POWERHIGH)) {
 #if (TIME_LIGHT)
     disp.Light_high();  // включение подсветки
 #endif

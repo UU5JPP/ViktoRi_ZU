@@ -1,6 +1,6 @@
 // функция сохранения настроек
 void Saved() {
-  EEPROM.put(1, vkr);
+  EEPROM.put(1, vkr);  
   EEPROM.put((int)(sizeof(pam) * vkr.profil + MEM), pam);  // обновить значения в памяти
 }
 
@@ -107,7 +107,7 @@ void Reset_settings(uint8_t sett) {
       if (sett != 1) break;
     case 3:
       // сбросить калибровки по умолчанию
-      vkr.GlobFlag = 3;                               // Q1 - состояние силового транзистора, состояние INA226/
+      vkr.GlobFlag = 0;                               // Q1 - состояние силового транзистора, состояние INA226/
       vkr.Ohms = OHMS;                                // кооффицмент коррекции напряжения 0-255
       vkr.profil = 0;                                 // текущий профиль 0-6
       vkr.Vref = VREF;                                // референсное напряжение

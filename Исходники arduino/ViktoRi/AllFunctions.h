@@ -32,7 +32,7 @@ void print_Capacity(void);
 void printCykl(void);
 void Vout(void);
 void ClearStr(uint8_t i);
-bool Q1_broken();
+void Q1_broken();
 void Saved();
 void Reset_settings(uint8_t sett);
 void Freq(const uint8_t frq);

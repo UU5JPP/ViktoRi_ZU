@@ -31,13 +31,12 @@ public:
           // если напряжение превысит максимальное проводим 10 проверок
           if (++_k > 10) {
             _k = 0;
-            bitSet(flag_global, POWERHIGH);
+            bitClear(flag_global, POWERHIGH);
           }
         } else {
           _k = 0;
-          bitClear(flag_global, POWERHIGH);
+          bitSet(flag_global, POWERHIGH);
         }
-        dcdc.pause(BitIsClear(flag_global, POWERHIGH));
       }
 
 #if (POWPIN == 2)

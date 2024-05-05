@@ -166,35 +166,35 @@ void Settings_point(uint8_t point, bool edit, int8_t x) {
         Reset_settings(0);  // сброс настроек по умолчанию
         lcd.clear();
         break;
-    //}
+        //}
 
-    if (pam.typeAkb < 5) {  
-        case 5:
-          // напряжение дозаряда
-          pam.Volt_add_charge = constrain(pam.Volt_add_charge + x * STEP_VOLT, 1000, POWERINT);
-          PrintVA(pam.Volt_add_charge, 0, 0, 0, 2);
-          break;
-        case 6:
-          // ток дозаряда
-          pam.Current_add_charge = constrain(pam.Current_add_charge + x * STEP_CURR, CUR_CHARGE_MIN, CURRMAXINT);
-          PrintVA(0, pam.Current_add_charge, 0, 0, 2);
-          break;
-        case 7:
-          // минимальный ток дозаряда
-          pam.Current_add_charge_min = constrain(pam.Current_add_charge_min + x * 10, CURMIN, pam.Current_add_charge);
-          PrintVA(0, pam.Current_add_charge_min, 0, 0, 2);
-          break;
-        case 8:
-          // время дозаряда
-          pam.Time_add_charge_h = constrain(pam.Time_add_charge_h + x, 1, 252);
-          lcd.print(pam.Time_add_charge_h);
-          break;
-        case 17:
-          // режим качели
-          if (x) InvBit(pam.MyFlag, OSCIL);  // инвертировать бит
-          PrintOnOff(bitRead(pam.MyFlag, OSCIL));
-          break;
-      }
+        if (pam.typeAkb < 5) {
+          case 5:
+            // напряжение дозаряда
+            pam.Volt_add_charge = constrain(pam.Volt_add_charge + x * STEP_VOLT, 1000, POWERINT);
+            PrintVA(pam.Volt_add_charge, 0, 0, 0, 2);
+            break;
+          case 6:
+            // ток дозаряда
+            pam.Current_add_charge = constrain(pam.Current_add_charge + x * STEP_CURR, CUR_CHARGE_MIN, CURRMAXINT);
+            PrintVA(0, pam.Current_add_charge, 0, 0, 2);
+            break;
+          case 7:
+            // минимальный ток дозаряда
+            pam.Current_add_charge_min = constrain(pam.Current_add_charge_min + x * 10, CURMIN, pam.Current_add_charge);
+            PrintVA(0, pam.Current_add_charge_min, 0, 0, 2);
+            break;
+          case 8:
+            // время дозаряда
+            pam.Time_add_charge_h = constrain(pam.Time_add_charge_h + x, 1, 252);
+            lcd.print(pam.Time_add_charge_h);
+            break;
+          case 17:
+            // режим качели
+            if (x) InvBit(pam.MyFlag, OSCIL);  // инвертировать бит
+            PrintOnOff(bitRead(pam.MyFlag, OSCIL));
+            break;
+        }
     }
     ClearStr(10);  // очистить поле
   }
@@ -203,7 +203,11 @@ void Settings_point(uint8_t point, bool edit, int8_t x) {
 // печать статистики
 void Prstatistic(int i, uint32_t time_i, int32_t Ah, int32_t Wh) {
   disp.printFromPGM(i);
-  Print_time(time_i, DISPLAYx - 5, 0);
+#if (DISPLAYx == 16)
+  Print_time(time_i, DISPLAYx - 5, 1);
+#elif (DISPLAYx == 20)
+  Print_time(time_i, DISPLAYx - 8, 1);
+#endif
   setCursory();
   PrintVA(0, 0, Ah, Wh, 2);
 }

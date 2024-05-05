@@ -36,10 +36,10 @@ public:
 // рассчет усредненной температуры с датчиков NTC. Вызывается раз в секунду или реже.
   void compute(void) {
 #if (SENSTEMP1 == 2)
-    Q1 = NTC_compute(_Q1 >> 4, ((float)NTCRS1 / NTCR1), NTCB1, TEMPBASE1);
+    Q1 = NTC_compute((float)(_Q1 >> 4), ((float)NTCRS1 / NTCR1), NTCB1, TEMPBASE1);
 #endif
 #if (SENSTEMP2 == 2)
-    akb = NTC_compute(_akb >> 4, ((float)NTCRS2 / NTCR2), NTCB2, TEMPBASE2);
+    akb = NTC_compute((float)(_akb >> 4), ((float)NTCRS2 / NTCR2), NTCB2, TEMPBASE2);
 #endif
   }
 
