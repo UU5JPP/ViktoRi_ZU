@@ -1,11 +1,7 @@
 #include "Arduino.h"
 #include <microWire.h>
 
-/*
-Конструктор:	
-    INA226 ina226 (Адрес на шине I2c)    
-    INA226 ina226 (0x41);				// Шунт и макс. ток по умолчанию, адрес 0x41 - подойдет для нескольких модулей   
-    
+/*  
 Методы:
     bool begin();							    // Инициализация модуля и проверка присутствия, вернет false если INA226 не найдена
     void sleep(true / false);				    // Включение и выключение режима низкого энергопотребления, в зависимости от аргумента
@@ -77,8 +73,7 @@
 
 class INA226 {
 public:
-
-  INA226(void){}
+ // INA226(void){}
 
   // Инициализация и проверка
   bool begin() {
@@ -239,14 +234,14 @@ INA226_CONV_8244US // 8244 мкс
     }
     return fg;
   }
-
+/*
   // функция INA226 error
   void error(void) {
     lcd.clear();
     lcd.print(F(txt6));   // INA226 error     
     delay(3000);
   }
-
+*/
 
 private:
   uint8_t _iic_address = 0x40;  // Адрес на шине I2c
@@ -296,5 +291,7 @@ private:
   float _ohms;
   int32_t _vs = 0;
   int32_t _as = 0;
-  float _vkoof = 1.25f;
+  float _vkoof = 0.0;
 };
+extern INA226 ina;             // адрес INA226
+INA226 ina = INA226();

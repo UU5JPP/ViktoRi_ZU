@@ -25,7 +25,6 @@ void sensor_survey(void) {
   }
 }
 
-
 // функция хранения акб и буферного режима
 void Storage(bool regim) {
   bool ext = true;
@@ -100,6 +99,9 @@ void Storage(bool regim) {
       }
 #if (TIME_LIGHT)
       if (!regim) disp.Light_low();  // отключение подсветки через 3 минуты в буферном режиме, если разрешено отключение
+#endif
+#if (LOGGER)
+      Sout.Serial_out(0);
 #endif
     }
     // если прошла секунда
@@ -216,24 +218,6 @@ uint16_t Volt_DCur(void) {
   return (pam.Volt_charge + bat.Volt(0)) >> 1;
 }
 
-// включение разряда и фиксация на определенном токе (amp - миллиампер)
-void Fixcurrent(int16_t amp) {
-  setCursory();
-  PrintVA(0, amp, 0, 0, 2);
-  float Integ = 0.0;
-  uint32_t t = millis();
-  Freq(EEPROM.read(8 + FREQDISCHAR));  // установить частоту работы разрядного модуля (4 кГц по умолчанию)
-  ina.start(2);                        // старт замеров INA
-  do {
-    // увеличение тока разряда
-    butt.Tick();
-    if (ina.sample()) {
-      Integ += (amp - abs(ina.amperms)) * 0.001f;
-      analogWrite_my(PWMDCH, trunc(constrain(Integ, 0, 255)));
-    }
-  } while (((millis() - t) < 3000) and !butt.tick);
-}
-
 // калибровка падения напряжения при токе нагрузки, напряжения от БП
 void Korrect(const uint8_t kof) {
   if (kof and !VOLTIN) return;  // если выбрана калибровка напряжения от БП и не установлен делитель напряжения на входе то выйти из функции
@@ -241,19 +225,32 @@ void Korrect(const uint8_t kof) {
 #if (TIME_LIGHT)
   disp.Light_high();  // включение подсветки
 #endif
-#if (GUARDA0)
-  Guard();  // принудительная блокировка модуля защиты при напряжении заряда или разряда акб менее 5 Вольт.
-#endif
-  lcd.clear();
   if (!kof) {
-    lcd.print(F(txt11));
-    Fixcurrent(2100);  // установить ток разряда 1000мА
+#if (GUARDA0)
+    Guard();  // принудительная блокировка модуля защиты при напряжении заряда или разряда акб менее 5 Вольт.
+#endif
+    ina.start(2);  // старт замеров INA
+    while (ina.voltsec < 2000) {
+      lcd.clear();
+      lcd.print(F(txt11));  //  Подключи АКБ
+      Delay(1000);
+      if (butt.tick == STOPCLICK or butt.tick == ENCHELD) {
+        dcdc.Off();
+        return;
+      }
+    }
+    Freq(EEPROM.read(8 + FREQDISCHAR));    // установить частоту работы разрядного модуля (4 кГц по умолчанию)
+    bitSet(pam.MyFlag, CHARGE);            // старт работы режима
+    dcdc.start(DCDC_DISCHARGE);            // старт разряда
+    dcdc.Smooth_off();                     // отключить плавный пуск
+    dcdc.begin((ina.voltsec >> 1), 2100);  // задает напряжение и ток разряда
     lcd.clear();
   } else {
 #if (POWPIN == 1)
     gio::high(RELAY220);               // включить сеть 220В
     bitClear(flag_global, RELEY_OFF);  // запрещено отключать реле
 #endif
+    lcd.clear();
   }
   bool x = false;
   bool ext = true;
@@ -262,23 +259,27 @@ void Korrect(const uint8_t kof) {
     // установка напряжения
     do {
       // ожидание действий пользователя
-      sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.
+      sensor_survey();                                                  // опрос кнопок, INA226, напря. от БП., контроль dcdc.
+      if (!kof and ina.ampersec < -2000) bitClear(pam.MyFlag, CHARGE);  // отключить стабилизацию тока
       if (butt.tick or sekd.tick()) {
         // вывод на дисплей
         switch (kof) {
           case 0:
-            lcd.clear();
+            setCursorx();  // 0, 0
             PrintVA(ina.voltsec, ina.ampersec, 0, 0, 3);
-            setCursory();  // *12.365V 3.254А  *
-            Write_x(x);    // > or  пробел  // *>80     >55    *
-            lcd.print(vkr.Ohms);
-            lcd.setCursor(8, 1);
-            Write_x(!x);  // > or  пробел
-            lcd.print(((float)vkr.shunt / 100));
-            lcd.print(F("mOm"));
+            if (BitIsClear(pam.MyFlag, CHARGE)) {
+              setCursory();  // *12.365V 3.254А  *
+              Write_x(x);    // > or  пробел  // *>80     >55    *
+              lcd.print(vkr.Ohms);
+              lcd.setCursor(8, 1);
+              Write_x(!x);  // > or  пробел
+              lcd.print(((float)vkr.shunt / 100));
+              lcd.print(F("mOm"));
+            }
             break;
 #if (VOLTIN == 1)
-          case 1:  // замер напряжения блока питания
+          case 1:
+            // замер напряжения блока питания
             setCursorx();
             PrintVA(vin.volt(), 0, 0, 0, 2);
             lcd.write(LEFTs);  // <
@@ -301,7 +302,7 @@ void Korrect(const uint8_t kof) {
           case 0:
             if (x) vkr.Ohms = constrain(vkr.Ohms + butt.tick, 0, 255);
             else vkr.shunt = constrain(vkr.shunt + butt.tick, 10, 10000);  // 1 - 0,1 мОм, 10000 - 100мОм
-            ina.start(1);                                                  // старт замеров INA
+            ina.start(2);                                                  // старт замеров INA
             break;
             // замер напряжения блока питания
 #if (VOLTIN == 1)
@@ -520,9 +521,11 @@ void Control_trAkb(void) {
       }
     } while (BitIsClear(flag_global, TEMP_AKB));
     lcd.clear();
-    Speaker(1000);       // функция звукового сигнала (время в миллисекундах)
+    Speaker(1000);  // функция звукового сигнала (время в миллисекундах)
   }
 }
+
+
 
 /*
 bool Control_trAkb() {
@@ -545,59 +548,43 @@ bool Control_trAkb() {
 */
 #endif
 
-// функция отправки значений в сетевой порт
-#if (LOGGER)
-void Serial_print(float x) {
-  Serial.print(x, 2);
-  Serial.print(F(";"));
+
+ // функция если пробит силовой транзистор
+void Q1_broken(void) { 
+#if (TIME_LIGHT) 
+  disp.Light_high();  // включение подсветки
+#endif
+  bitSet(vkr.GlobFlag, TRQ1);
+  dcdc.Off();
+#if (GUARDA0)
+  gio::low(PINA0);  // разблокировать защитный модуль
+#endif
+#if (PROT == 1)
+  gio::low(PROTECT); //закрыть защитный транзистор
+#endif
+#if (POWPIN == 1)
+  gio::low(RELAY220);    // отключить сеть 220В
+#endif
+
+  Saved(); // сохранить настройки
+  lcd.clear();
+  lcd.print(F(txt24));  //"!!-BROKEN Q1-!!" 
+
+  pauses();
+  
+  bitClear(vkr.GlobFlag, TRQ1); // при нажатии записать в память что транзистор исправен
+  Saved(); // сохранить настройки
+#if (PROT == 1)
+  gio::low(PROTECT); // открыть защитный транзистор Q4
+#endif
+#if (POWPIN == 1)
+  gio::high(RELAY220);    // включить сеть 220В
+#endif
+#if (GUARDA0)
+  Guard();  // принудительная блокировка модуля защиты при напряжении заряда или разряда акб менее 5 Вольт.
+#endif
+  lcd.clear();  
 }
-
-// Вывод логов в сетевой порт // выполняется 1964 мкс (на lgt8 32МГц - 840 мкс)
-// напряжение, ток, А/ч, (напряжение БП), (темп Q1), (темп Акб) - в скобках вывод при наличии датчиков
-void Serial_out(float Achas) {
-  Serial_print((float)ina.voltsec / 1000);   //1 напряжение на АКБ (вольт)
-  Serial_print((float)ina.ampersec / 1000);  //2 ток АКБ (ампер)
-  Serial_print(Achas / 100000);              //3 Полученная_отданная емкость АКБ (А/ч))
-#if (VOLTIN == 1)
-  Serial_print((float)vin.volt() / 1000);  //4 напряжение от БП
-#endif
-#if (SENSTEMP1)
-  Serial_print(kul.tQ1);  //5 Температура на Q1 (градусы)
-#endif
-
-#if (SENSTEMP2 == 2)
-  Serial_print(ntc.akb);  //6 Температура АКБ (градусы)
-#endif
-  // Serial_print( ); // добавь что хочешь
-  // Serial_print( ); // добавь что хочешь
-  // Serial_print( ); // добавь что хочешь
-  // Serial_print( ); // добавь что хочешь
-
-  //Serial.print(7);      //7  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере. нужна коррекция скетча WiFi переходника
-  //Serial.print(";");
-  //Serial.print(8);      //8  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-  //Serial.print(";");
-  //Serial.print(9);      //9  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-  //Serial.print(";");
-  //Serial.print(10);    //10  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-  //Serial.print(";");
-  //Serial.print(11);    //11  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-  //Serial.print(";");
-  //Serial.print(12);    //12  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-  //Serial.print(";");
-  //Serial.print(13);    //13  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-  //Serial.print(";");
-  //Serial.print(14);    //14  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-  //Serial.print(";");
-  //Serial.print(15);    //15  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-  //Serial.print(";");
-  //Serial.print(16);    //16  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-  //Serial.print(";");
-  //Serial.print(17);    //17  подключен:значения на главной странице WiFi переходника и на логгере, отключен: значения только на логгере.
-  Serial.print("\n");  // Знак переноса строки.00
-}
-#endif
-
 
 
 /*

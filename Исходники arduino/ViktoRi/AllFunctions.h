@@ -6,7 +6,7 @@ void Res_ktc(void);
 void Delay(uint16_t t);
 void pauses(void);
 uint16_t Volt_DCur(void);
-void Fixcurrent(int16_t amp);
+//void Fixcurrent(int16_t amp);
 void Korrect(const uint8_t kof);
 void Wait(uint16_t time_charge);
 void End(void);
@@ -32,7 +32,6 @@ void print_Capacity(void);
 void printCykl(void);
 void Vout(void);
 void ClearStr(uint8_t i);
-void Q1_broken();
 void Saved();
 void Reset_settings(uint8_t sett);
 void Freq(const uint8_t frq);
@@ -40,7 +39,8 @@ void Settings_point(uint8_t point, bool edit, int8_t x);
 void Prstatistic(int i, uint32_t time_i, int32_t Ah, int32_t Wh);
 void Statistics_point(uint8_t point);
 void calculate(uint8_t i);
-
+void sensor_survey(void);
+void Q1_broken(void);
 
 #if (POWPIN == 1)
 void Relay(void);
@@ -51,10 +51,7 @@ void Guard(void);
 #if (CORRECTCUR == 1 and SENSTEMP2 == 2)
 void Control_trAkb();
 #endif
-#if (LOGGER)
-void Serial_print(float x);
-void Serial_out(float Achas);
-#endif
+
 #if (DISCHAR == 1)
 void Discharge();
 #endif
@@ -73,8 +70,3 @@ void Display_print(int32_t Ah, int32_t Wh, uint32_t time_real, int8_t tr, uint8_
 #if (SERVICE == 1)
 void serviceparam(void);
 #endif
-
-
-
-struct VA_var;
-//class Enbutt;

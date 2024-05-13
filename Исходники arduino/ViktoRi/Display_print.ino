@@ -29,8 +29,8 @@ void Print_time(uint32_t time_real, uint8_t x, uint8_t y) {
   lcd.setCursor(x, y);
   pr_tm((uint16_t)(time_real / 3600ul));  // часы
   lcd.write(58);
-  uint32_t t = (time_real % 3600ul);  // минуты
-  pr_tm((uint16_t)(t / 60ul));
+  uint32_t t = (time_real % 3600ul); 
+  pr_tm((uint16_t)(t / 60ul)); // минуты
   lcd.write(58);
   pr_tm((uint16_t)(t % 60ul));  // секунды
 }
@@ -244,21 +244,22 @@ void Vout(void) {
 void ClearStr(uint8_t i) {
   while (--i) printSimb();  // очистить поле
 }
-
+/*
 // вывод свободной оперативки
 void print_memoryFree(void) {
   lcd.setCursor(0, 0);
   lcd.print(memoryFree());
   lcd.print(F(" "));
 }
-
+*/
+/*
 // Переменные, создаваемые процессом сборки,
 // когда компилируется скетч
 extern int __bss_end;
 extern void *__brkval;
 
 // Функция, возвращающая количество свободного ОЗУ (RAM)
-int memoryFree() {
+int memoryFree(void) {
   int freeValue;
   if ((int)__brkval == 0)
     freeValue = ((int)&freeValue) - ((int)&__bss_end);
@@ -266,3 +267,4 @@ int memoryFree() {
     freeValue = ((int)&freeValue) - ((int)__brkval);
   return freeValue;
 }
+*/

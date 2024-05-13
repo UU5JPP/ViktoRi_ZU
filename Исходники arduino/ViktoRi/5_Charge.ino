@@ -115,6 +115,7 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
   uint32_t tyme_branim = 0;
 #endif
   uint8_t ap[2] = { 4, 15 };  // коэффициент тока для предзаряда
+  dcdc.start(DCDC_CHARGE); 
   // задает напряжение и ток заряда
   dcdc.begin(volt_charge_init, (add_charge ? curr_charge_init : (bitRead(pam.MyFlag, PRECHAR) ? pam.Current_pre_charge : curr_charge_init)));
 
@@ -133,9 +134,9 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
   bitClear(flag_global, RELEY_OFF);  // запрещено отключать реле
 #endif
 #if (LOGGER)
-  uint8_t logg = LOGGTIME;  // период отправки данных в сетевой порт
+  Sout.start();
 #endif
-  const int x[] = { (int)(&settings[14]), (int)(&modeTxt[0]), (int)(&modeTxt[3]), (int)(&settings[17]), (int)(&modeTxt[2]) };  // {предварительный заряд, заряд, дозаряд, Качели, Бранимир}
+  const int x[]{ (int)(&settings[14]), (int)(&modeTxt[0]), (int)(&modeTxt[3]), (int)(&settings[17]), (int)(&modeTxt[2]) };  // {предварительный заряд, заряд, дозаряд, Качели, Бранимир}
 
   uint8_t q1 = 0;  // количество проверок силового транзистора 2
   ina.start(1);  // старт замеров INA
@@ -144,9 +145,7 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
 #if (VOLTIN == 1)
   uint16_t vin_volt;
 #endif
-  sekd.start();  // старт отсчета времени одна секунда
-  
-  dcdc.start(DCDC_CHARGE); 
+  sekd.start();  // старт отсчета времени одна секунда  
   tyme.real = millis();  // запоминаем текущее время заряда
   // цикл заряда
   while (bitRead(flagsz, CHARGEZ) and bitRead(pam.MyFlag, CHARGE)) {
@@ -584,12 +583,8 @@ void ChargeAkb(uint16_t volt_charge_init, int16_t curr_charge_init, int16_t curr
 #endif
         break;
       case 1:
-#if (LOGGER)
-        logg--;
-        if (!logg) {
-          logg = LOGGTIME;          
-          Serial_out(add_charge ? pam.Ah_addcharge : pam.Ah_charge);
-        }
+#if (LOGGER)                    
+          Sout.Serial_out(add_charge ? pam.Ah_addcharge : pam.Ah_charge);
 #endif
         break;
     }

@@ -8,94 +8,22 @@ uint8_t flag_global = 0b00100000;
 #else
 uint8_t flag_global = 0b00100010;
 #endif
-#define POWERHIGH 0    // напряжение блока питания (true - напряжения питания в норме)
-#define POWERON 1      // питание от БП поступает
-#define TR_Q1_ERR 2    // превышена температура на силовом транзисторе
+#define POWERHIGH 0  // напряжение блока питания не превышает POWER_MAX (true - напряжения питания в норме)
+#define POWERON 1    // питание от БП поступает
+#define TR_Q1_ERR 2  // превышена температура на силовом транзисторе
 //#define DISP_LIGHT 3   // разрешено отключать подсветку дисплея
-#define RELEY_OFF 4    // разрешено отключать реле
-#define TEMP_AKB 5     // температура акб (true - в норме)
+#define RELEY_OFF 4  // разрешено отключать реле
+#define TEMP_AKB 5   // температура акб (true - в норме)
 
-#if (SENSTEMP1 == 1)
-#include <microDS18B20.h>      // Библиотека датчика температуры DS18B20.
-MicroDS18B20<PINTERM1> tr_Q1;  // датчик температуры.
-#endif
-#if (SENSTEMP1 == 2 or SENSTEMP2 == 2)
-#include "NTCv.h"  // Класс датчика температуры NTC
-NTCv ntc; // создать обьект ntc
-#endif
-
-#define EB_DEB_TIME 50     // таймаут гашения дребезга кнопки (кнопка)
-#define EB_CLICK_TIME 500  // таймаут ожидания кликов (кнопка)
-#define EB_HOLD_TIME 1000  // таймаут удержания (кнопка)
-#define EB_STEP_TIME 200   // таймаут импульсного удержания (кнопка)
-#define EB_FAST_TIME 30    // таймаут быстрого поворота (энкодер)
-#define EB_NO_CALLBACK     // отключить обработчик событий attach (экономит 2 байта оперативки)
-#define EB_NO_COUNTER      // отключить счётчик энкодера [VirtEncoder, Encoder, EncButton] (экономит 4 байта оперативки)
-//#define EB_NO_BUFFER     // отключить буферизацию энкодера (экономит 2 байта оперативки)
-#include <EncButton.h>  // Библиотека энкодера и кнопок
-#if (ENCBUTT == 0)
-// 0 - только энкодер
-EncButtonT<ENC_S2, ENC_S1, ENC_KL> enc(INPUT_PULLUP, INPUT_PULLUP);  // энкодер с кнопкой
-#elif (ENCBUTT == 1)
-// 1 - только кнопки
-ButtonT<PUSK> OK(INPUT_PULLUP);      // кнопка - Пуск
-ButtonT<MINUS> Minus(INPUT_PULLUP);  // кнопка - Минус
-ButtonT<PLUS> Plus(INPUT_PULLUP);    // кнопка - Плюс
-ButtonT<STOP> Stop(INPUT_PULLUP);    // кнопка - Стоп
-#elif (ENCBUTT == 2)
-// 2 - энкодер + OK + Stop
-EncButtonT<ENC_S2, ENC_S1, ENC_KL> enc(INPUT_PULLUP, INPUT_PULLUP);
-ButtonT<PUSK> OK(INPUT_PULLUP);
-ButtonT<STOP> Stop(INPUT_PULLUP);
-#elif (ENCBUTT == 3)
-// 3 - энкодер + все кнопки
-EncButtonT<ENC_S2, ENC_S1, ENC_KL> enc(INPUT_PULLUP, INPUT_PULLUP);
-ButtonT<PUSK> OK(INPUT_PULLUP);
-ButtonT<MINUS> Minus(INPUT_PULLUP);
-ButtonT<PLUS> Plus(INPUT_PULLUP);
-ButtonT<STOP> Stop(INPUT_PULLUP);
-#endif
-
-class TimerMs {
-public:
-
-  TimerMs(const uint16_t p) : _prd(p) {}
-
-  // запустить/перезапустить таймер
-  void start(void) {
-    _tmr = millis();
-  }
-
-  bool tick(void) {
-    if (millis() - _tmr >= _prd) {
-      start();
-      return true;
-    }
-    return false;
-  }
-
-private:
-  uint32_t _tmr = 0; 
-  const uint16_t _prd;
-};
-TimerMs sekd(1000); // таймер 1 секунда для вывода на дисплей и периодических функций
-TimerMs sekv(1000); // таймер 1 секунда для постоянно работающих функций
-#if (POWPIN == 1)
-TimerMs tvin(60000); // таймер 1 минута для реле 220В
-#endif
-
-#if (MCP4725DAC)
-#include "MCP4725my.h"
-MCP4725 dac(ADDR4725);
-#endif
+uint8_t regim_end = 0;  // номер причины завершения заряда
 
 // 7 байт
 struct Intls {
-  uint8_t GlobFlag;                  // Q1 - состояние силового транзистора Q1 - рабочий/пробит
-  uint8_t Ohms;                      // кооффицмент коррекции напряжения 0-255 (сопротивление линии до акб)
-  uint8_t profil;                    // текущий профиль 0-9
-  uint16_t Vref;                     // референсное напряжение
-  uint16_t shunt;                    // значение сопротивления шунта (1000 - 10мОм)  
+  uint8_t GlobFlag;  // Q1 - состояние силового транзистора Q1 - рабочий/пробит
+  uint8_t Ohms;      // кооффицмент коррекции напряжения 0-255 (сопротивление линии до акб)
+  uint8_t profil;    // текущий профиль 0-9
+  uint16_t Vref;     // референсное напряжение
+  uint16_t shunt;    // значение сопротивления шунта (1000 - 10мОм)
 } vkr;
 
 // 77 байт
@@ -136,11 +64,40 @@ struct MyStrukt {
   uint16_t Resist_2;               // - пусковой ток
 } pam;
 
+#define EB_DEB_TIME 50     // таймаут гашения дребезга кнопки (кнопка)
+#define EB_CLICK_TIME 500  // таймаут ожидания кликов (кнопка)
+#define EB_HOLD_TIME 1000  // таймаут удержания (кнопка)
+#define EB_STEP_TIME 200   // таймаут импульсного удержания (кнопка)
+#define EB_FAST_TIME 30    // таймаут быстрого поворота (энкодер)
+#define EB_NO_CALLBACK     // отключить обработчик событий attach (экономит 2 байта оперативки)
+#define EB_NO_COUNTER      // отключить счётчик энкодера [VirtEncoder, Encoder, EncButton] (экономит 4 байта оперативки)
+//#define EB_NO_BUFFER     // отключить буферизацию энкодера (экономит 2 байта оперативки)
+#include <EncButton.h>  // Библиотека энкодера и кнопок
+#if (ENCBUTT == 0)
+// 0 - только энкодер
+EncButtonT<ENC_S2, ENC_S1, ENC_KL> enc(INPUT_PULLUP, INPUT_PULLUP);  // энкодер с кнопкой
+#elif (ENCBUTT == 1)
+// 1 - только кнопки
+ButtonT<PUSK> OK(INPUT_PULLUP);      // кнопка - Пуск
+ButtonT<MINUS> Minus(INPUT_PULLUP);  // кнопка - Минус
+ButtonT<PLUS> Plus(INPUT_PULLUP);    // кнопка - Плюс
+ButtonT<STOP> Stop(INPUT_PULLUP);    // кнопка - Стоп
+#elif (ENCBUTT == 2)
+// 2 - энкодер + OK + Stop
+EncButtonT<ENC_S2, ENC_S1, ENC_KL> enc(INPUT_PULLUP, INPUT_PULLUP);
+ButtonT<PUSK> OK(INPUT_PULLUP);
+ButtonT<STOP> Stop(INPUT_PULLUP);
+#elif (ENCBUTT == 3)
+// 3 - энкодер + все кнопки
+EncButtonT<ENC_S2, ENC_S1, ENC_KL> enc(INPUT_PULLUP, INPUT_PULLUP);
+ButtonT<PUSK> OK(INPUT_PULLUP);
+ButtonT<MINUS> Minus(INPUT_PULLUP);
+ButtonT<PLUS> Plus(INPUT_PULLUP);
+ButtonT<STOP> Stop(INPUT_PULLUP);
+#endif
+
 #include <LiquidCrystal_I2C.h>  // Библиотека дисплея
 LiquidCrystal_I2C lcd(ADDRDISP, DISPLAYx, DISPLAYy);
-#include "Display.h"
-
-uint8_t regim_end = 0;  // номер причины завершения заряда
 
 // напряжение одной ячейки аккумулятора (умножить на 10, в мВ)
 const uint16_t bt_volt[4][9] PROGMEM = {
@@ -168,117 +125,26 @@ public:
 
 void (*resetFunc)(void) = 0;  // функция reset с адресом 0
 
-#include "INA226int.h"  // Библиотека INA226
-INA226 ina;             // адрес INA226
+#include "INA226int.h"  // Класс INA226
+
+#if (SENSTEMP1 == 1)
+#include <microDS18B20.h>      // Библиотека датчика температуры DS18B20.
+MicroDS18B20<PINTERM1> tr_Q1;  // датчик температуры.
+#endif
+
+#include "AllFunctions.h"
+#include "Classes.h"
+
+TimerMs sekd(1000);  // таймер 1 секунда для вывода на дисплей и периодических функций
+TimerMs sekv(1000);  // таймер 1 секунда для постоянно работающих функций
+#if (POWPIN == 1)
+TimerMs tvin(60000);  // таймер 1 минута для реле 220В
+#endif
 
 #include "DCDC.h"  // класс управления DC-DC модулем
 
-#if (VOLTIN == 1)
-#include "ADCSred.h"
-ADCSred vin;  // замер напряжения БП
-#endif
-
-#include "Kuler.h"  // класс управления кулером и чтения температуры
-
-#include "AllFunctions.h"
-
-// настройка команд энкодера и кнопок
-#define LEFT -1
-#define RIGHT 1
-#define ENCCLICK 16
-#define ENCHELD 2
-#define OKCLICK 26
-#define OKHELD 12
-#define STOPCLICK 36
-#define STOPHELD 22
-#define PLUSHELD 32
-#define MINUSHELD 42
-class Enbutt {
-public:
-
-  Enbutt(void){};
-
-  int8_t tick;
-  // функция опрашивает энкодер и кнопки.
-  void Tick(void) {
-    tick = 0;
-// -1 - left, 1 - right, 16 - click, 2 - hold, 4 - step
-#if (ENCBUTT == 0)
-    // 0 - только энкодер
-    if (enc.tick()) {
-      if (enc.turn()) tick = enc.dir();  // -1 - left, 1 - right,
-      else {
-        if (enc.click()) tick = 16;
-        if (enc.hold()) tick = 2;
-      }
-    }
-#elif (ENCBUTT == 1)
-    // 1 - только кнопки
-    if (OK.tick()) {
-      if (OK.click()) tick = 26;
-      if (OK.hold()) tick = 12;
-    }
-    if (Stop.tick()) {
-      if (Stop.click()) tick = 36;
-      if (Stop.hold()) tick = 22;
-    }
-    if (Plus.tick()) {
-      if (Plus.click() or Plus.step()) tick = RIGHT;
-    }
-    if (Minus.tick()) {
-      if (Minus.click() or Minus.step()) tick = LEFT;
-    }
-#elif (ENCBUTT == 2)
-    // 2 - энкодер + OK + Stop
-    if (enc.tick()) {
-      if (enc.turn()) tick = enc.dir();  // -1 - left, 1 - right,
-      else {
-        if (enc.click()) tick = 16;
-        if (enc.hold()) tick = 2;
-      }
-    }
-    if (OK.tick()) {
-      if (OK.click()) tick = 26;
-      if (OK.hold()) tick = 12;
-    }
-    if (Stop.tick()) {
-      if (Stop.click()) tick = 36;
-      if (Stop.hold()) tick = 22;
-    }
-#elif (ENCBUTT == 3)
-    // 3 - энкодер + все кнопки
-    if (enc.tick()) {
-      if (enc.turn()) tick = enc.dir();  // -1 - left, 1 - right,
-      else {
-        if (enc.click()) tick = 16;
-        if (enc.hold()) tick = 2;
-      }
-    }
-    if (OK.tick()) {
-      if (OK.click()) tick = 26;
-      if (OK.hold()) tick = 12;
-    }
-    if (Stop.tick()) {
-      if (Stop.click()) tick = 36;
-      if (Stop.hold()) tick = 22;
-    }
-    if (Plus.tick()) {
-      if (Plus.click() or Plus.step()) tick = RIGHT;
-    }
-    if (Minus.tick()) {
-      if (Minus.click() or Minus.step()) tick = LEFT;
-    }
-#endif
-#if (TIME_LIGHT)
-    if (tick) disp.Light_high();
-#endif
-  }
-  //private:
-} butt;
-
-
 void setup() {
-  // настройка пинов  
+  // настройка пинов
   gio::mode(PWMCH, OUTPUT);   // ШИМ заряд
   gio::mode(BUZER, OUTPUT);   // пин вывода звука
   gio::mode(PIN_13, OUTPUT);  // управление реле нагрузки в буферном режиме
@@ -304,7 +170,7 @@ void setup() {
 #if (FAN)
   gio::mode(PWMKUL, OUTPUT);  // вентилятор
   // Пины D9 и D10 - 30 Гц для вентилятора
-  TCCR1A = 0b00000001;  // 8bit
+  TCCR1A = 0b00000001;  // 8bit 
   TCCR1B = 0b00000101;  // x1024 phase correct
 #endif
 #if (VOLTIN == 1)
@@ -331,8 +197,8 @@ void setup() {
 
   uint32_t t = millis();  // засекаем время
   Speaker(500);           // функция звукового сигнала (время в миллисекундах)
-#if (FAN)  
-  gio::high(PWMKUL);      // запуск вентилятора, проверка работоспособности
+#if (FAN)
+  gio::high(PWMKUL);  // запуск вентилятора, проверка работоспособности
 #endif
 #if (SENSTEMP1 == 1)
   tr_Q1.online();  // опросить датчик температуры
@@ -352,16 +218,16 @@ void setup() {
     butt.Tick();
     if (butt.tick == STOPHELD or butt.tick == ENCHELD) {
 #if (FAN)
-     gio::low(PWMKUL);// остановка вентилятора
+      gio::low(PWMKUL);  // остановка вентилятора
 #endif
-      Reset_settings(0);  // сброс настроек
+      Reset_settings(1);  // сброс настроек - 1 Стереть все.
     }
 #if (VOLTIN == 1)
     analogRead_my(POWIN);  // замер напряжения БП
 #endif
   }
-#if (FAN)  
-  gio::low(PWMKUL);// остановка вентилятора
+#if (FAN)
+  gio::low(PWMKUL);  // остановка вентилятора
 #endif
   EEPROM.get(1, vkr);                                      // читаю из памяти значения
   EEPROM.get((int)(sizeof(pam) * vkr.profil + MEM), pam);  // читаю из памяти значения
@@ -369,14 +235,18 @@ void setup() {
 
   // конфигурация INA226
   if (ina.begin()) ina.start(1);  // старт замеров INA
-  else ina.error();
+  else {
+    lcd.clear();
+    lcd.print(F(txt6));   // INA226 error 
+    pauses();
+  }
 
 #if (MCP4725DAC)
   if (!dac.testConnection()) {
     lcd.clear();
     lcd.print(F("MCP4725"));
     print_mode(2);  // "error"
-    Delay(1500);
+    pauses();
   }
 #endif
 #if (VOLTIN == 1)
@@ -398,7 +268,7 @@ void setup() {
 #endif
   Wire.setClock(WIRECLOCK);  // частота I2C в герцах // влияет на INA226 и на дисплей
 }
-// setup
+// --setup
 
 
 void loop() {

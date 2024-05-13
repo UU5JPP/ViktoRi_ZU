@@ -1,6 +1,6 @@
 #if (DISCHAR == 1)
 //Функция разряда аккумулятора
-void Discharge() {  
+void Discharge() {
   //вывод режима, напряжения и тока заряда/разряда
   PrintVA(pam.Volt_discharge, pam.Current_discharge, 0, 0, 1);  // напряжения и тока разряда
   printCykl();                                                  // вывод количества циклов
@@ -11,13 +11,14 @@ void Discharge() {
 
   uint8_t time_millis = 0;
   Tyme tyme;
-  tyme.local = pam.Time_discharge;  
-  dcdc.begin(pam.Volt_discharge, pam.Current_discharge); // задает напряжение и ток разряда
+  tyme.local = pam.Time_discharge;
+  dcdc.start(DCDC_DISCHARGE);
+  dcdc.begin(pam.Volt_discharge, pam.Current_discharge);  // задает напряжение и ток разряда
 
 #if (LOGGER)
-  uint8_t logg = LOGGTIME;  // период отправки данных в сетевой порт
+  Sout.start();
 #endif
-  ina.start(2);           // старт замеров INA
+  ina.start(2);  // старт замеров INA
   Delay(3000);
 
 #if (POWPIN == 1)
@@ -25,8 +26,6 @@ void Discharge() {
 #endif
   uint16_t time10 = 600;  // выполнить раз в 600 сек (10 мин)
   sekd.start();           // старт отсчета времени одна секунда
-  
-  dcdc.start(DCDC_DISCHARGE);
   tyme.real = millis();  // запоминаем текущее время
   // цикл разряда 35 часов максимум
   while (dischar and bitRead(pam.MyFlag, CHARGE) and pam.Time_discharge < 126000) {
@@ -64,9 +63,7 @@ void Discharge() {
             if (ina.voltsec <= pam.Volt_discharge and ampsec <= pam.Current_discharge_min) dischar = false;  // напряжение уменьшилось до установленного и ток уменьшился до установленного то завершить разряд
           }
           break;
-          //       case 4:
-
-          //          break;
+          //       case 4: break;
         case 3:
           // вывод на дисплей 1602
 #if (DISPLAYy == 2)
@@ -143,11 +140,7 @@ void Discharge() {
           Guard();  // принудительная блокировка модуля защиты при напряжении заряда или разряда акб менее 5 Вольт.
 #endif
 #if (LOGGER)
-          logg--;
-          if (!logg) {
-            logg = LOGGTIME;
-            Serial_out(pam.Ah_discharge);
-          }
+          Sout.Serial_out(pam.Ah_discharge);
 #endif
 
           time10--;
@@ -172,7 +165,6 @@ void Discharge() {
 // Функция разряда аккумулятора
 #endif
 
-
 #if (RESIST == 1)
 // Функция измерения сопротивления
 void Resist() {
@@ -180,50 +172,51 @@ void Resist() {
     print_mode(2);  // "error"
     Delay(1000);
     return;
-  }  
-  uint16_t U[2] = { 0 };
-  int16_t I[2] = { 0 };
-  uint8_t timer = 8;  // время первого замера сек.
-  Fixcurrent(400);    // установить ток разряда мА
-  sekd.start();       // старт отсчета времени одна секунда
-  //выполнять 10 сек
+  }
+  Freq(EEPROM.read(8 + FREQDISCHAR));   // установить частоту работы разрядного модуля (4 кГц по умолчанию)
+  bitSet(pam.MyFlag, CHARGE);           // старт работы режима
+  dcdc.start(DCDC_DISCHARGE);           // старт разряда
+  dcdc.Smooth_off();                    // отключить плавный пуск
+  dcdc.begin((ina.voltsec >> 1), 400);  // задает напряжение и ток разряда
+  sekd.start();                         // старт отсчета времени одна секунда
+  uint8_t timer = 10;                   // время первого замера сек.
   do {
+    //выполнять 8 сек
     sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.
     if (butt.tick == ENCHELD or butt.tick == STOPCLICK) {
       dcdc.Off();  // отключить заряд, разряд.
+      bitClear(pam.MyFlag, CHARGE);
       return;
     }
     if (sekd.tick()) {
       // если прошла секунда вывод на дисплей
       setCursory();
       PrintVA(ina.voltsec, ina.ampersec, 0, 0, 2);  // *12.36V 3.55A    *
-      timer--;
+      lcd.print(--timer);
     }
   } while (timer);
-  I[0] = abs(ina.ampersec);
-  U[0] = ina.voltsec;
-  dcdc.Off();                // отключить заряд, разряд.
-  //bitClear(pam.MyFlag, CHARGE);
-  gio::high(PWMDCH);         // включить максимальный ток
-  Delay(1000);               // ожидание
-  I[1] = abs(ina.ampersec);  // чтение тока ina.amperms
-  U[1] = ina.voltsec;        // чтение напряжения ina.voltms
-  gio::low(PWMDCH);          // отключить ток
+  int16_t I[2]{ abs(ina.ampersec), 0 };  // сохранить ток
+  uint16_t U[2]{ ina.voltsec, 0 };       // сохранить напряжение
+  dcdc.begin((ina.voltsec >> 1), 2000);  // задает напряжение и ток разряда // 2000
+  Delay(2000);                           // ожидание // 3000
+  I[1] = abs(ina.ampersec);              // сохранить ток
+  U[1] = ina.voltsec;                    // сохранить напряжение
+  dcdc.Off();                            // отключить заряд, разряд.
+  bitClear(pam.MyFlag, CHARGE);
   setCursory();
-  PrintVA(U[1], I[1], 0, 0, 2);                         // *12.36V 3.55A    *
-  Delay(3000);                                          // ожидание 3 сек
-  uint16_t r = (U[0] - U[1]) * 100000 / (I[1] - I[0]);  // расчитать внутренее сопротивление аккумулятора
+  PrintVA(U[1], -I[1], 0, 0, 2);  // *12.36V 3.55A    *
+  ClearStr(4);
+  Delay(4000);                                                                                              // ожидание 4 сек
+  float r = ((float)(U[0] - U[1]) / (float)(I[1] - I[0])) / 4.9f * 1000;                                    // 4,2    // 3,6f // расчитать внутренее сопротивление аккумулятора
+  float curr = ((float)U[0] - ((float)(U[0] - U[1]) * (200.0f / (float)(I[1] - I[0]) / 10))) / (r * 4.5f);  //4,2  // расчет пускового тока - напряжение делить на сопротивление
   setCursory();
-  lcd.print(((float)r / 100), 1);
+  lcd.print(r, 1);
   lcd.print(F("mOm "));
-  if (r) {
-    pam.Resist_1 = r;
-    pam.Resist_2 = (uint16_t)((uint32_t)bat.Volt(3) * 100 / r);  // расчет пускового тока - напряжение делить на сопротивление
-    lcd.print(pam.Resist_2);
-    lcd.write(65);  // А
-    ClearStr(3);
-  }
-  //ClearStr(5);
+  lcd.print(curr, 1);
+  lcd.write(65);  // А
+  ClearStr(4);
+  pam.Resist_1 = (uint16_t)(r * 100);
+  pam.Resist_2 = (uint16_t)(curr * 10);
   Delay(7000);  // ожидание
 }
 #endif

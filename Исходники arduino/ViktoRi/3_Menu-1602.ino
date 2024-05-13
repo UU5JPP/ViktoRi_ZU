@@ -15,7 +15,7 @@ void Menu1602() {
   bool printx = true;
   int8_t x = 0;
   sekd.start();
-  ina.start(1);  // старт замеров INA
+  ina.start(2);  // старт замеров INA
   do {
     // цикл меню
     switch (urovenmenu) {
@@ -296,7 +296,7 @@ void Menu1602() {
           // print_memoryFree(); // вывод свободной оперативки
         }
 #if (LOGGER)
-        Serial_out(0);
+        Sout.Serial_out(0);
 #endif
       }  // --- выполнить раз в секунду
 

@@ -6,16 +6,7 @@
 // класс управления DC-DC модулем
 class DCDC {
 public:
-  // список членов, доступных в программе
-
-  DCDC(void){};
-
-  /// задать максимальные значения напряжения и тока заряда
-  void begin(uint16_t volt_charge, int16_t cur_charge) {
-    _volt_charge = volt_charge;
-    _cur_charge_max = cur_charge;
-    if (BitIsClear(_flags, Smooth)) _cur_charge = cur_charge;  // если отключен плавный пуск
-  }
+// DCDC(void){};
 
   void start(bool mods) {
     _cur_max = CURRMAXINT;
@@ -26,6 +17,18 @@ public:
     _flags = 0b00000011;           // флаги // 0 пауза, 1 плавный пуск, 2 режим (заряд/ разряд)
     bitWrite(_flags, Mode, mods);  // установить режим работы заряд/разряд
     _time_sec = millis();
+  }
+
+    // отключить плавный пуск - вызывать после start() и перед begin()
+  void Smooth_off(void) {
+    bitClear(_flags, Smooth);
+  }
+
+  // задать максимальные значения напряжения и тока заряда
+  void begin(uint16_t volt_charge, int16_t cur_charge) {
+    _volt_charge = volt_charge;
+    _cur_charge_max = cur_charge;
+    if (BitIsClear(_flags, Smooth)) _cur_charge = cur_charge;  // если отключен плавный пуск
   }
 
   // регулировка напряжения и тока заряда
