@@ -177,11 +177,12 @@ void Resist() {
   bitSet(pam.MyFlag, CHARGE);           // старт работы режима
   dcdc.start(DCDC_DISCHARGE);           // старт разряда
   dcdc.Smooth_off();                    // отключить плавный пуск
-  dcdc.begin((ina.voltsec >> 1), 400);  // задает напряжение и ток разряда
+  dcdc.begin((ina.voltsec >> 1), 800);  // задает напряжение и ток разряда
   sekd.start();                         // старт отсчета времени одна секунда
-  uint8_t timer = 10;                   // время первого замера сек.
+  uint16_t vlt = 0;
+  uint8_t timer = 60;                   // время первого замера сек.
   do {
-    //выполнять 8 сек
+    //выполнять 10 сек
     sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.
     if (butt.tick == ENCHELD or butt.tick == STOPCLICK) {
       dcdc.Off();  // отключить заряд, разряд.
@@ -191,20 +192,22 @@ void Resist() {
     if (sekd.tick()) {
       // если прошла секунда вывод на дисплей
       setCursory();
-      PrintVA(ina.voltsec, ina.ampersec, 0, 0, 2);  // *12.36V 3.55A    *
+      PrintVA(ina.voltsec, abs(ina.ampersec), 0, 0, 3);  // *12.361V 3.555A  *
       lcd.print(--timer);
+      if (ina.voltsec - vlt <= 1) break;  // стабилизация напряжения до 1мВ
+      vlt = ina.voltsec;
     }
   } while (timer);
   int16_t I[2]{ abs(ina.ampersec), 0 };  // сохранить ток
   uint16_t U[2]{ ina.voltsec, 0 };       // сохранить напряжение
-  dcdc.begin((ina.voltsec >> 1), 2000);  // задает напряжение и ток разряда // 2000
-  Delay(2000);                           // ожидание // 3000
+  dcdc.begin((ina.voltsec >> 1), 4000);  // задает напряжение и ток разряда // 2000
+  Delay(1000);                           // ожидание // 3000
   I[1] = abs(ina.ampersec);              // сохранить ток
   U[1] = ina.voltsec;                    // сохранить напряжение
   dcdc.Off();                            // отключить заряд, разряд.
   bitClear(pam.MyFlag, CHARGE);
   setCursory();
-  PrintVA(U[1], -I[1], 0, 0, 2);  // *12.36V 3.55A    *
+  PrintVA(U[1], I[1], 0, 0, 3);  // *12.36V 3.55A    *
   ClearStr(4);
   Delay(4000);                                                                                              // ожидание 4 сек
   float r = ((float)(U[0] - U[1]) / (float)(I[1] - I[0])) / 4.9f * 1000;                                    // 4,2    // 3,6f // расчитать внутренее сопротивление аккумулятора
