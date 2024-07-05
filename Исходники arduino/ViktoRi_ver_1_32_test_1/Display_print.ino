@@ -1,4 +1,8 @@
-#include "Arduino.h"
+
+void printSimb(void) {
+  lcd.write(' ');
+}
+
 // вывод на дисплей во float - напряжение, ток, ампер-часы, ватт-часы, кол. разрядов после запятой.
 void PrintVA(uint16_t volt, int16_t current, int32_t Ah, int32_t Wh, uint8_t x) {
   if (volt) {
@@ -28,10 +32,10 @@ void pr_tm(uint16_t tm) {
 void Print_time(uint32_t time_real, uint8_t x, uint8_t y) {
   lcd.setCursor(x, y);
   pr_tm((uint16_t)(time_real / 3600ul));  // часы
-  lcd.write(58);
-  uint32_t t = (time_real % 3600ul); 
-  pr_tm((uint16_t)(t / 60ul)); // минуты
-  lcd.write(58);
+  lcd.write(':');
+  uint32_t t = (time_real % 3600ul);
+  pr_tm((uint16_t)(t / 60ul));  // минуты
+  lcd.write(':');
   pr_tm((uint16_t)(t % 60ul));  // секунды
 }
 
@@ -41,16 +45,46 @@ void setCursorx(void) {
 void setCursory(void) {
   lcd.setCursor(0, 1);
 }
-void printSimb(void) {
-  lcd.write(PROBEL);
-}
 
-void print_tr(int8_t tr) {
-  lcd.print(tr);
-  lcd.print(F(txt_C));
-}
+#if (SENSTEMP1 or SENSTEMP2)
+// печать температуры транзистора или акб
+void print_tr(void) {
+#if (SENSTEMP1 and SENSTEMP2)
+  // если подключены 2 датчика температуры
+  static bool _tmp = true;
+  if (fivet.tick()) {
+    _tmp = !_tmp;
+#if (SENSTEMP1 and SENSTEMP2 == 1)
+    lcd.print(_tmp ? kul.tQ1 : akb.temp);
+#endif
+#if (SENSTEMP1 and SENSTEMP2 == 2)
+    lcd.print(_tmp ? kul.tQ1 : adc.tmp_akb);
+#endif
+    lcd.write(_tmp ? 'C' : 'c');
+    printSimb();
+  }
+#endif
 
-bool akb = true;
+#if (SENSTEMP1 and SENSTEMP2 == 0)
+  // если подключен только датчик транзистора
+  lcd.print(kul.tQ1);
+  lcd.print(F("С "));
+#endif
+
+#if (SENSTEMP1 == 0 and SENSTEMP2)
+// если подключен только датчик акб
+#if (SENSTEMP1 and SENSTEMP2 == 1)
+  lcd.print(akb.temp);
+#endif
+#if (SENSTEMP1 and SENSTEMP2 == 2)
+  lcd.print(adc.tmp_akb);
+#endif
+  lcd.print(F("С "));
+#endif
+}
+#endif
+
+bool akbzn = true;
 // функция вывод на дисплей
 #if ((DISPLAYx == 16 and DISPLAYy == 2) or (DISPLAYx == 20 and DISPLAYy == 2))
 void Display_print(int32_t Ah, uint32_t time_real, uint8_t prc, bool add) {
@@ -61,7 +95,7 @@ void Display_print(int32_t Ah, uint32_t time_real, uint8_t prc, bool add) {
     lcd.clear();
     lcd.print(F(txt4));  // "Power "
 #if (VOLTIN == 1)
-    PrintVA(vin.volt(), 0, 0, 0, 1);
+    PrintVA(adc.volt, 0, 0, 0, 1);
 #endif
     print_mode(2);  // error
     Speaker(500);   // функция звукового сигнала (время в миллисекундах)
@@ -78,8 +112,8 @@ void Display_print(int32_t Ah, uint32_t time_real, uint8_t prc, bool add) {
     PrintVA(0, ((pam.Mode == 4) ? abs(ina.ampersec) : ina.ampersec), 0, 0, ((abs(ina.ampersec) < 10000) ? 3 : 2));
     Print_time(time_real, 7, 1);
     lcd.setCursor(DISPLAYx - 1, 1);
-    lcd.write((akb ? map(prc, 0, 100, 0, 6) : ((pam.Mode == 4) ? 32 : 7)));  // знак акб:  пробел - значек заряда
-    akb = !akb;
+    lcd.write((akbzn ? map(prc, 0, 100, 0, 6) : ((pam.Mode == 4) ? 32 : 7)));  // знак акб:  пробел - значек заряда
+    akbzn = !akbzn;
   }
 }
 // *14.81V 0.01Ah Ch*  0
@@ -96,7 +130,7 @@ void Display_print(int32_t Ah, int32_t Wh, uint32_t time_real, int8_t tr, uint8_
     lcd.clear();
     lcd.print(F(txt4));  // "Power "
 #if (VOLTIN == 1)
-    PrintVA(vin.volt(), 0, 0, 0, 2);
+    PrintVA(adc.volt, 0, 0, 0, 2);
 #else
     print_mode(2);  // error
 #endif
@@ -117,21 +151,18 @@ void Display_print(int32_t Ah, int32_t Wh, uint32_t time_real, int8_t tr, uint8_
     lcd.setCursor(0, 2);
     PrintVA(0, 0, Ah, Wh, 2);  // ампер-часы ватт-часы
     lcd.print(prc);            // процент заряда Акб
-    lcd.print(F(txt_PRC));
+    lcd.write('%');
     // 3 строка
     lcd.setCursor(0, 3);
     if (ina.voltsec < 10000) lcd.print(0);
     PrintVA(ina.voltsec, 0, 0, 0, 2);                                                                               // вывести Вольт
     PrintVA(0, ((pam.Mode == 4) ? abs(ina.ampersec) : ina.ampersec), 0, 0, ((abs(ina.ampersec) < 10000) ? 3 : 2));  // вывести Ампер
-#if (SENSTEMP1)
-    print_tr(kul.tQ1);                                                                                              // температура
+#if (SENSTEMP1 or SENSTEMP2)
+    print_tr();                                                                                                     // температура транзистора или акб
 #endif
-#if (SENSTEMP2 == 2)
-    print_tr(ntc.akb);                                                                                              // температура акб
-#endif  // температура
     lcd.setCursor(DISPLAYx - 1, 3);
-    lcd.write((akb ? map(prc, 0, 100, 0, 6) : ((pam.Mode == 4) ? 32 : 7)));  // знак акб - значек заряда -  пробел
-    akb = !akb;
+    lcd.write((akbzn ? map(prc, 0, 100, 0, 6) : ((pam.Mode == 4) ? 32 : 7)));  // знак акб - значек заряда -  пробел
+    akbzn = !akbzn;
   }
 }
 // *PB Ca/Ca 60Ah 12.6V *  0
@@ -151,7 +182,7 @@ void Display_print(int32_t Ah, int32_t Wh, uint32_t time_real, int8_t tr, uint8_
     lcd.clear();
     lcd.print(F(txt4));  // "Power "
 #if (VOLTIN == 1)
-    PrintVA(vin.volt(), 0, 0, 0, 2);
+    PrintVA(adc.volt, 0, 0, 0, 2);
 #else
     print_mode(2);  // error
 #endif
@@ -168,12 +199,9 @@ void Display_print(int32_t Ah, int32_t Wh, uint32_t time_real, int8_t tr, uint8_
     Print_time(time_real, 0, 1);  // время
     printSimb();                  // пробел
     lcd.print(prc);               // процент заряда Акб
-    lcd.print(F(txt_PRC));
-#if (SENSTEMP1)
-    print_tr(kul.tQ1);  // температура
-#endif
-#if (SENSTEMP2 == 2)
-    print_tr(ntc.akb);  // температура акб
+    lcd.write('%');
+#if (SENSTEMP1 or SENSTEMP2)
+    print_tr();  // температура транзистора или акб
 #endif
     // 2 строка
     lcd.setCursor(0, 2);
@@ -185,7 +213,7 @@ void Display_print(int32_t Ah, int32_t Wh, uint32_t time_real, int8_t tr, uint8_
     PrintVA(ina.voltsec, 0, 0, 0, 2);                                                                               // вывести Вольт
     PrintVA(0, ((pam.Mode == 4) ? abs(ina.ampersec) : ina.ampersec), 0, 0, ((abs(ina.ampersec) < 10000) ? 3 : 2));  // вывести Ампер
     lcd.setCursor(DISPLAYx - 1, 3);
-    lcd.write((akb ? map(prc, 0, 100, 0, 6) : ((pam.Mode == 4) ? 32 : 7)));  // знак акб - значек заряда -  пробел
+    lcd.write((akb ? map(prc, 0, 100, 0, 6) : ((pam.Mode == 4) ? ' ' : 7)));  // знак акб - значек заряда -  пробел
     akb = !akb;
   }
 }
@@ -203,7 +231,7 @@ void PrintOnOff(bool i) {
 
 // вывод на дисплей > или пробел
 void Write_x(bool x) {
-  lcd.write((x ? 62 : 32));  // > or  пробел
+  lcd.write((x ? '>' : ' '));  // > or  пробел
 }
 
 // вывод на дисплей: 0-режим работы, 1-тип акб
@@ -215,7 +243,7 @@ void print_mode(uint8_t i) {
     case 3: disp.printFromPGM((int)(&menuTxt[5])); break;  // "Settings"
     case 4:
       lcd.print(((float)bat.Volt(0) / 1000), 1);  // напряжение
-      lcd.write(86);                              // V
+      lcd.write('V');                             // V
       break;
   }
 }
@@ -226,17 +254,17 @@ void print_Capacity(void) {
 }
 
 void printCykl(void) {
-  lcd.write(67);  // C
+  lcd.write('C');  // C
   lcd.print(pam.Round);
 }
 
 // Функция вывода напряжения акб и количество банок
 void Vout(void) {
-  print_mode(4);  // 12.6V
-  lcd.write(40);  // (
+  print_mode(4);   // 12.6V
+  lcd.write('(');  // (
   lcd.print(pam.Voltage);
-  lcd.write(41);  // )
-  ClearStr(4);    // очистить поле
+  lcd.write(')');  // )
+  ClearStr(4);     // очистить поле
   lcd.setCursor(3, 0);
 }
 

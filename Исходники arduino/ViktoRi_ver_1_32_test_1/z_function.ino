@@ -4,26 +4,34 @@ void sensor_survey(void) {
 
   if (ina.sample()) {
     dcdc.Control();  // регулировка тока и напряжения
-#if (VOLTIN == 1)
-    vin.sample();  // чтение сырых данных с аналогового пина с усреднением - напряжения БП
+#if (VOLTIN == 1)    // напряжение от БП
+    check_Q1();      //проверка на то что силовой транзистор пробит
 #endif
-#if (SENSTEMP1 == 2 or SENSTEMP2 == 2)
-    ntc.readTemp();  // чтение сырых данных с аналогового пина с усреднением. Вызывается часто.
+#if (VOLTIN == 1)
+    adc.check();   // проверить напряжение на превышение
 #endif
   }
 
+#if (VOLTIN == 1)
+  adc.sample();  // чтение сырых данных с аналогового пина с усреднением - напряжения БП
+#endif
+
   if (sekv.tick()) {
     // выполняются раз в секунду
+#if (VOLTIN == 1 or SENSTEMP1 == 2 or SENSTEMP2 == 2)
+    adc.compute();  // Вызывается раз в секунду или реже.
+#endif
+#if (SENSTEMP2 == 1)
+    akb.read_temp();  // чтение датчика температуры акб DS18B20
+#endif
+
     kul.fan();  // чтение температуры и управение кулером
 #if (POWPIN == 1)
     Relay();  // функция управления реле подключения к сети 220В
 #endif
-
-#if (SENSTEMP1 == 2 or SENSTEMP2 == 2)
-    ntc.compute();  // рассчет усредненной температуры с датчиков NTC. Вызывается раз в секунду или реже.
-#endif
   }
 }
+
 
 // функция хранения акб и буферного режима
 void Storage(bool regim) {
@@ -64,11 +72,8 @@ void Storage(bool regim) {
       Print_time(t_st++, DISPLAYx - 8, 0);          // *Storage 12:10:36*
       setCursory();                                 // *13.10V 6.12A 25C*
       PrintVA(ina.voltsec, ina.ampersec, 0, 0, 2);  // вывод на дисплей во float - напряжение, ток, ампер-часы, ватт-часы, кол. разрядов после запятой.
-#if (SENSTEMP1)
-      print_tr(kul.tQ1);  // температура
-#endif
-#if (SENSTEMP2 == 2)
-      print_tr(ntc.akb);  // температура акб
+#if (SENSTEMP1 or SENSTEMP2)
+      print_tr();  // температура транзистора или акб
 #endif
 
       // сигнализация о снижении напряжения акб ниже предела (12V)
@@ -101,7 +106,7 @@ void Storage(bool regim) {
       if (!regim) disp.Light_low();  // отключение подсветки через 3 минуты в буферном режиме, если разрешено отключение
 #endif
 #if (LOGGER)
-      Sout.Serial_out(0);
+      Sout.Serial_out();
 #endif
     }
     // если прошла секунда
@@ -203,7 +208,9 @@ void Res_ktc(void) {
 // функция ожидания (t - милисекунды)
 void Delay(uint16_t t) {
   uint32_t r = millis();
-  while (millis() - r < t) sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.  // and !butt.tick
+  do {
+    sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.  // and !butt.tick
+  } while ((millis() - r < t) and !butt.tick);
 }
 
 // пауза до нажатия
@@ -218,6 +225,7 @@ uint16_t Volt_DCur(void) {
   return (pam.Volt_charge + bat.Volt(0)) >> 1;
 }
 
+
 // калибровка падения напряжения при токе нагрузки, напряжения от БП
 void Korrect(const uint8_t kof) {
   if (kof and !VOLTIN) return;  // если выбрана калибровка напряжения от БП и не установлен делитель напряжения на входе то выйти из функции
@@ -230,18 +238,19 @@ void Korrect(const uint8_t kof) {
     Guard();  // принудительная блокировка модуля защиты при напряжении заряда или разряда акб менее 5 Вольт.
 #endif
     ina.start(2);  // старт замеров INA
-    while (ina.voltsec < 2000) {
+    while (ina.voltsec < 9000) {
       lcd.clear();
-      lcd.print(F(txt11));  //  Подключи АКБ
-      Delay(1000);
-      if (butt.tick == STOPCLICK or butt.tick == ENCHELD) {
+      lcd.print(F(txt11));   //  Подключи АКБ
+      lcd.print(F(" >9V"));  //
+      Delay(200);
+      if (butt.tick == STOPCLICK or butt.tick == ENCCLICK) {
         dcdc.Off();
         return;
       }
     }
     Freq(EEPROM.read(8 + FREQDISCHAR));    // установить частоту работы разрядного модуля (4 кГц по умолчанию)
     bitSet(pam.MyFlag, CHARGE);            // старт работы режима
-    dcdc.start(DCDC_DISCHARGE);            // старт разряда
+    dcdc.start(DCDC_DISCHARGE);            // настройка разряда
     dcdc.Smooth_off();                     // отключить плавный пуск
     dcdc.begin((ina.voltsec >> 1), 2100);  // задает напряжение и ток разряда
     lcd.clear();
@@ -261,7 +270,7 @@ void Korrect(const uint8_t kof) {
       // ожидание действий пользователя
       sensor_survey();                                                  // опрос кнопок, INA226, напря. от БП., контроль dcdc.
       if (!kof and ina.ampersec < -2000) bitClear(pam.MyFlag, CHARGE);  // отключить стабилизацию тока
-      if (butt.tick or sekd.tick()) {
+      if (sekd.tick() or butt.tick) {
         // вывод на дисплей
         switch (kof) {
           case 0:
@@ -271,20 +280,21 @@ void Korrect(const uint8_t kof) {
               setCursory();  // *12.365V 3.254А  *
               Write_x(x);    // > or  пробел  // *>80     >55    *
               lcd.print(vkr.Ohms);
+              printSimb();
               lcd.setCursor(8, 1);
               Write_x(!x);  // > or  пробел
               lcd.print(((float)vkr.shunt / 100));
-              lcd.print(F("mOm"));
+              lcd.print(F("mOm "));
             }
             break;
 #if (VOLTIN == 1)
           case 1:
             // замер напряжения блока питания
             setCursorx();
-            PrintVA(vin.volt(), 0, 0, 0, 2);
-            lcd.write(LEFTs);  // <
+            PrintVA(adc.volt, 0, 0, 0, 2);
+            lcd.write('<');  // <
             lcd.print(vkr.Vref);
-            lcd.write(RIGHTs);  // >
+            lcd.write('>');  // >
             break;
 #endif
         }
@@ -292,26 +302,28 @@ void Korrect(const uint8_t kof) {
     } while (!butt.tick);
 
     switch (butt.tick) {
-      case ENCCLICK:
-      case OKCLICK:
-        x = !x;
-        break;
-      case RIGHT:
-      case LEFT:
-        switch (kof) {
-          case 0:
-            if (x) vkr.Ohms = constrain(vkr.Ohms + butt.tick, 0, 255);
-            else vkr.shunt = constrain(vkr.shunt + butt.tick, 10, 10000);  // 1 - 0,1 мОм, 10000 - 100мОм
-            ina.start(2);                                                  // старт замеров INA
-            break;
-            // замер напряжения блока питания
+      if (BitIsClear(pam.MyFlag, CHARGE)) {
+        case ENCCLICK:
+        case OKCLICK:
+          x = !x;
+          break;
+        case RIGHT:
+        case LEFT:
+          switch (kof) {
+            case 0:
+              if (x) vkr.Ohms = constrain(vkr.Ohms + butt.tick, 0, 255);
+              else vkr.shunt = constrain(vkr.shunt + butt.tick, 10, 10000);  // 1 - 0,1 мОм, 10000 - 100мОм
+              ina.start(2);                                                  // старт замеров INA
+              break;
+              // замер напряжения блока питания
 #if (VOLTIN == 1)
-          case 1:
-            vkr.Vref = constrain(vkr.Vref + butt.tick, 1000, 6000);
-            break;
+            case 1:
+              vkr.Vref = constrain(vkr.Vref + butt.tick, 1000, 6000);
+              break;
 #endif
-        }
-        break;
+          }
+          break;
+      }
       case ENCHELD:
       case STOPCLICK:
         ext = false;
@@ -319,11 +331,13 @@ void Korrect(const uint8_t kof) {
     }
   } while (ext);  // установка напряжения
   dcdc.Off();     // отключить заряд, разряд.
+  bitClear(pam.MyFlag, CHARGE);
   EEPROM.put(1, vkr);
 #if (POWPIN == 1)
   bitSet(flag_global, RELEY_OFF);  // разрешено отключать реле
 #endif
 }
+
 
 // Функция ожидания time_charge - минут
 void Wait(uint16_t time_charge) {
@@ -343,13 +357,19 @@ void Wait(uint16_t time_charge) {
       setCursory();
       PrintVA(ina.voltsec, 0, 0, 0, 2);
       lcd.print(time_charge);
-      lcd.print(F(txt20));  // "минут"
+      lcd.print(F(txt20));  // "мин"
       tm--;
       if (!tm) {
         // когда прошла минута
         tm = 60;
         time_charge--;
       }
+#if (LOGGER)
+      Sout.Serial_out();
+#endif
+#if (TIME_LIGHT)
+      disp.Light_low();  // отключение подсветки через 3 минуты, если разрешено отключение
+#endif
     }
   } while (time_charge and butt.tick != STOPHELD and butt.tick != ENCHELD);  //  цикл в минутах или долгово нажатия OK
 }
@@ -414,6 +434,7 @@ void End(void) {
 // функция выбора Stop/OK. (timer - секунд, время через которое возвращается false. Если timer = 0 то возврат из функции по нажатию кнопок/енкодера)
 bool Choice(uint8_t secund, bool rez) {
   sekd.start();
+  sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.
   do {
     switch (butt.tick) {
       case LEFT:
@@ -486,9 +507,9 @@ uint8_t Percentage(uint16_t volt_max, uint16_t volt, int16_t current, int16_t cu
 // контроль температуры Акб с датчика NTC подключенного к пин А6 Ардуино
 void Control_trAkb(void) {
   if (bitRead(flag_global, TEMP_AKB)) {
-    if (ntc.akb > 40) bitClear(flag_global, TEMP_AKB);
-    else if (pam.typeAkb <= 4 and ntc.akb < -15) bitClear(flag_global, TEMP_AKB);
-    else if ((pam.typeAkb <= 6 or pam.typeAkb == 8) and ntc.akb < 10) bitClear(flag_global, TEMP_AKB);
+    if (adc.tmp_akb > 40) bitClear(flag_global, TEMP_AKB);
+    else if (pam.typeAkb <= 4 and adc.tmp_akb < -15) bitClear(flag_global, TEMP_AKB);
+    else if ((pam.typeAkb <= 6 or pam.typeAkb == 8) and adc.tmp_akb < 10) bitClear(flag_global, TEMP_AKB);
   }
 
   if (BitIsClear(flag_global, TEMP_AKB)) {
@@ -502,21 +523,21 @@ void Control_trAkb(void) {
     uint32_t sek = 0;
     do {
       sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.  // and !butt.tick
-      if (butt.tick) {
+      if (butt.tick == ENCHELD or butt.tick == STOPHELD) {
         bitClear(pam.MyFlag, CHARGE);
         return;
       }
       if (millis() - sek >= 3000) {
         sek = millis();
         lcd.setCursor(9, 0);
-        lcd.print(ntc.akb);
+        lcd.print(adc.tmp_akb);
         printSimb();  // пробел
         setCursory();
         PrintVA(ina.voltsec, ina.ampersec, 0, 0, 3);
 
-        if (ntc.akb < 37) {
-          if (pam.typeAkb <= 4 and ntc.akb > -14) bitSet(flag_global, TEMP_AKB);
-          else if ((pam.typeAkb <= 6 or pam.typeAkb == 8) and ntc.akb > 11) bitSet(flag_global, TEMP_AKB);
+        if (adc.tmp_akb < 37) {
+          if (pam.typeAkb <= 4 and adc.tmp_akb > -14) bitSet(flag_global, TEMP_AKB);
+          else if ((pam.typeAkb <= 6 or pam.typeAkb == 8) and adc.tmp_akb > 11) bitSet(flag_global, TEMP_AKB);
         }
       }
     } while (BitIsClear(flag_global, TEMP_AKB));
@@ -524,68 +545,94 @@ void Control_trAkb(void) {
     Speaker(1000);  // функция звукового сигнала (время в миллисекундах)
   }
 }
+#endif
 
+#if (CORRECTCUR == 1 and SENSTEMP2 == 1)
+// контроль температуры Акб с датчика NTC подключенного к пин А6 Ардуино
+void Control_trAkb(void) {
+  if (bitRead(flag_global, TEMP_AKB)) {
+    if (akb.temp > 40) bitClear(flag_global, TEMP_AKB);
+    else if (pam.typeAkb <= 4 and akb.temp < -15) bitClear(flag_global, TEMP_AKB);
+    else if ((pam.typeAkb <= 6 or pam.typeAkb == 8) and akb.temp < 10) bitClear(flag_global, TEMP_AKB);
+  }
 
+  if (BitIsClear(flag_global, TEMP_AKB)) {
+    dcdc.stop();  // остановить заряд
+#if (TIME_LIGHT)
+    disp.Light_high();  // включение подсветки
+#endif
+    lcd.clear();
+    lcd.print(F(txt9));  // "Temp akb:"
+    Speaker(1000);       // функция звукового сигнала (время в миллисекундах)
+    uint32_t sek = 0;
+    do {
+      sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.  // and !butt.tick
+      if (butt.tick == ENCHELD or butt.tick == STOPHELD) {
+        bitClear(pam.MyFlag, CHARGE);
+        bitSet(flag_global, TEMP_AKB);
+        return;
+      }
+      if (millis() - sek >= 3000) {
+        sek = millis();
+        lcd.setCursor(9, 0);
+        lcd.print(akb.temp);
+        printSimb();  // пробел
+        setCursory();
+        PrintVA(ina.voltsec, ina.ampersec, 0, 0, 3);
 
-/*
-bool Control_trAkb() {
-  bool tr = true;  // вернуть если температура акб в норме
-  //int16_t tr_akb = tr_bat.getTempInt();             // чтение температуры с датчика 2 акб
-  int16_t curr_charge_init = dcdc.getCur_charge();  // ток заряда
-  // если акб свинцово-кислотный то производится корректировка напряжения заряда 30 мВ на каждый градус Цельсия при отличии температуры от +25°С.
-  if (pam.typeAkb <= 4) dcdc.setVolt_charge(dcdc.getVolt_charge() - (ntc.akb - 25) * 30);  // Pb
-  else if (pam.typeAkb <= 6 or pam.typeAkb == 8) {                                         // "Li-ion" "LiFePo4" "NiCd/Mh"
-    // если температура акб меньше 10 или больше 40 гр то отключить заряд
-    if (ntc.akb < 10 or ntc.akb > 40) {
-      tr = false;
-      dcdc.Off();
-    } else if (ntc.akb > 35) dcdc.setCur_charge(curr_charge_init - ((ntc.akb - 35) * 10 * curr_charge_init / 100));                     // если темпратура акб больше 35 гр то уменьшать ток заряда на 10% на градус.
-    else if (ntc.akb < 15) dcdc.setCur_charge(curr_charge_init - ((5 - (ntc.akb - 10)) * 10 * curr_charge_init / 100));                 // если темпратура акб меньше 15 гр то уменьшать ток заряда на 10% на градус.
-    else tr = true;                                                                                                                     // t_akb = true;                                                                                                               // иначе продолжать заряд
-  } else if (pam.typeAkb == 7 and ntc.akb > 40) dcdc.setCur_charge(curr_charge_init - ((ntc.akb - 40) * 10 * curr_charge_init / 100));  // "LiTit" // если темпратура акб больше 40 гр то уменьшать ток заряда на 10% на градус.
-  return tr;
+        if (akb.temp < 37) {
+          if (pam.typeAkb <= 4 and akb.temp > -14) bitSet(flag_global, TEMP_AKB);
+          else if ((pam.typeAkb <= 6 or pam.typeAkb == 8) and akb.temp > 11) bitSet(flag_global, TEMP_AKB);
+        }
+      }
+    } while (BitIsClear(flag_global, TEMP_AKB));
+    lcd.clear();
+    Speaker(1000);  // функция звукового сигнала (время в миллисекундах)
+  }
 }
-*/
 #endif
 
+#if (VOLTIN == 1)  // напряжение от БП
 
- // функция если пробит силовой транзистор
-void Q1_broken(void) { 
-#if (TIME_LIGHT) 
-  disp.Light_high();  // включение подсветки
+//проверка на то что силовой транзистор пробит
+void check_Q1(void) {
+  if ((abs((int16_t)ina.voltms - (int16_t)adc.volt) < 100) and ina.amperms > 100) {
+#if (TIME_LIGHT)
+    disp.Light_high();  // включение подсветки
 #endif
-  bitSet(vkr.GlobFlag, TRQ1);
-  dcdc.Off();
+    bitSet(vkr.GlobFlag, TRQ1);
+    dcdc.Off();
 #if (GUARDA0)
-  gio::low(PINA0);  // разблокировать защитный модуль
+    gio::low(PINA0);  // разблокировать защитный модуль
 #endif
 #if (PROT == 1)
-  gio::low(PROTECT); //закрыть защитный транзистор
+    gio::low(PROTECT);  //закрыть защитный транзистор
 #endif
 #if (POWPIN == 1)
-  gio::low(RELAY220);    // отключить сеть 220В
+    gio::low(RELAY220);  // отключить сеть 220В
 #endif
 
-  Saved(); // сохранить настройки
-  lcd.clear();
-  lcd.print(F(txt24));  //"!!-BROKEN Q1-!!" 
+    Saved();  // сохранить настройки
+    lcd.clear();
+    lcd.print(F(txt24));  //"!!-BROKEN Q1-!!"
 
-  pauses();
-  
-  bitClear(vkr.GlobFlag, TRQ1); // при нажатии записать в память что транзистор исправен
-  Saved(); // сохранить настройки
+    pauses();
+
+    bitClear(vkr.GlobFlag, TRQ1);  // при нажатии записать в память что транзистор исправен
+    Saved();                       // сохранить настройки
 #if (PROT == 1)
-  gio::low(PROTECT); // открыть защитный транзистор Q4
+    gio::low(PROTECT);  // открыть защитный транзистор Q4
 #endif
 #if (POWPIN == 1)
-  gio::high(RELAY220);    // включить сеть 220В
+    gio::high(RELAY220);  // включить сеть 220В
 #endif
 #if (GUARDA0)
-  Guard();  // принудительная блокировка модуля защиты при напряжении заряда или разряда акб менее 5 Вольт.
+    Guard();  // принудительная блокировка модуля защиты при напряжении заряда или разряда акб менее 5 Вольт.
 #endif
-  lcd.clear();  
+    lcd.clear();
+  }
 }
-
+#endif
 
 /*
 // ===================== FLAGS Button======================

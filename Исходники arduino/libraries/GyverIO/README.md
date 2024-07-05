@@ -1,6 +1,7 @@
 [![latest](https://img.shields.io/github/v/release/GyverLibs/GyverIO.svg?color=brightgreen)](https://github.com/GyverLibs/GyverIO/releases/latest/download/GyverIO.zip)
+[![PIO](https://badges.registry.platformio.org/packages/gyverlibs/library/GyverIO.svg)](https://registry.platformio.org/libraries/gyverlibs/GyverIO)
 [![Foo](https://img.shields.io/badge/Website-AlexGyver.ru-blue.svg?style=flat-square)](https://alexgyver.ru/)
-[![Foo](https://img.shields.io/badge/%E2%82%BD$%E2%82%AC%20%D0%9D%D0%B0%20%D0%BF%D0%B8%D0%B2%D0%BE-%D1%81%20%D1%80%D1%8B%D0%B1%D0%BA%D0%BE%D0%B9-orange.svg?style=flat-square)](https://alexgyver.ru/support_alex/)
+[![Foo](https://img.shields.io/badge/%E2%82%BD%24%E2%82%AC%20%D0%9F%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-%D0%B0%D0%B2%D1%82%D0%BE%D1%80%D0%B0-orange.svg?style=flat-square)](https://alexgyver.ru/support_alex/)
 [![Foo](https://img.shields.io/badge/README-ENGLISH-blueviolet.svg?style=flat-square)](https://github-com.translate.goog/GyverLibs/GyverIO?_x_tr_sl=ru&_x_tr_tl=en)  
 
 [![Foo](https://img.shields.io/badge/ПОДПИСАТЬСЯ-НА%20ОБНОВЛЕНИЯ-brightgreen.svg?style=social&logo=telegram&color=blue)](https://t.me/GyverLibs)
@@ -162,6 +163,7 @@ gio::shift::send(3, 4, MSBFIRST, data, 4);
 - v1.2.4 - исправлен баг в gio::shift::read для AVR NC
 - v1.2.5 - добавлен возврат true в gio::shift::read при изменении буфера
 - v1.3.0 - исправлена критическая ошибка AVR/mode/NC
+- v1.3.1 - добавлен дополнительный delay в shift для симметричности клока
 
 <a id="install"></a>
 ## Установка

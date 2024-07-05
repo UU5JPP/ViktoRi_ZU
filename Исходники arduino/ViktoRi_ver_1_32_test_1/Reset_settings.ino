@@ -29,7 +29,7 @@ void Reset_settings(uint8_t sett) {
   bool ext = true;
   do {
     setCursory();
-    lcd.write(RIGHTs);  // >
+    lcd.write('>');  // >
     switch (sett) {
       case 0:
         lcd.print(F(txt5));  // "Exit"
@@ -48,10 +48,10 @@ void Reset_settings(uint8_t sett) {
         break;
     }
     ClearStr(12);
-    pauses();
+    pauses(); // периодический вызов sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.
     switch (butt.tick) {
       case LEFT: 
-      case RIGHT:     
+      case RIGHT:
         sett = constrain(sett + butt.tick, 0, 4);
         break;
       case STOPCLICK:

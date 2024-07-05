@@ -65,8 +65,8 @@ const char nami5[] PROGMEM = "\x42\x70\x65\xBC\xC7 \xB7\x61\x70\xC7\xE3\x61";   
 const char nami6[] PROGMEM = "\x48\x61\xBE\x70. \xE3\x6F\xB7\x61\x70\xC7\xE3\x61";             //  5   Напр. дозаряда  *
 const char nami7[] PROGMEM = "\x54\x6F\xBA \xE3\x6F\xB7\x61\x70\xC7\xE3\x61";                  //  6   Ток дозаряда    *
 const char nami8[] PROGMEM = "\x4D\xB8\xBD. \xBF\x6F\xBA \xE3\x6F\xB7\x61\x70\xC7\xE3\x61";    //  7   Мин. ток дозар. *
-const char nami9[] PROGMEM = "\x42\x70\x65\xBC\xC7 \xE3\x6F\xB7\x61\x70\xC7\xE3\x61";          //  8  Время дозаряда  *
-const char nami10[] PROGMEM = "\x48\x61\xBE\x70. \x70\x61\xB7\x70\xC7\xE3\x61";                 //  9  Наряж. разряда  *
+const char nami9[] PROGMEM = "\x42\x70\x65\xBC\xC7 \xE3\x6F\xB7\x61\x70\xC7\xE3\x61";          //  8   Время дозаряда  *
+const char nami10[] PROGMEM = "\x48\x61\xBE\x70. \x70\x61\xB7\x70\xC7\xE3\x61";                //  9   Наряж. разряда  *
 const char nami11[] PROGMEM = "\x54\x6F\xBA \x70\x61\xB7\x70\xC7\xE3\x61";                     //  10  Ток разряда     *
 const char nami12[] PROGMEM = "\x4D\xB8\xBD. \xBF\x6F\xBA \x70\x61\xB7\x70\xC7\xE3\x61";       //  11  Мин. ток разряда*
 const char nami13[] PROGMEM = "\xA0\x79\xE4\x65\x70\xBD\xc3\xB9 \x70\x65\xB6\xB8\xBC";         //  12  Буферный режим  *
@@ -104,10 +104,10 @@ const char* const calibr[] PROGMEM = { namc1, namc2 };
 #define txt14 "\x4F\xBF\xBA\xBB\x2E"                           //  Откл.
 //#define txt15 "\xAB\x61\x63"                                   //  Час
 #define txt16 "\xA8\x61\x79\xB7\x61"                           //  Пауза
-#define txt17 "\x3C\x4F\x4B\x3E"                               // "< OK >"
+#define txt17 "\x3C \x4F\x4B \x3E"                               // "< OK >"
 //#define txt18 "V Bpe\xBC\xC7 "                              //  V Время
 #define txt19 "\x3C\x43\xBF\x6F\xBE\x3e"                       //  "<Стоп>"
-#define txt20 "\xBC\xB8\xBD"                                   //  мин
+#define txt20 " \xBC\xB8\xBD "                                   //  мин
 #define txt21 "\x6F\xC1\xB8\xB2\xBA\x61"                              //  ошибка
 #define txt22 "Volt"                                                  // Вольт
 #define txt23 "Amper"                                                 // Ампер
@@ -124,7 +124,7 @@ const char namm3[] PROGMEM = "Type Akb";
 const char namm4[] PROGMEM = "Voltage Akb";
 const char namm5[] PROGMEM = "Operating mode";
 const char namm6[] PROGMEM = "Settings";
-const char namm7[] PROGMEM = "Resistance Akb";
+const char namm7[] PROGMEM = "Resist. akb";
 const char namm8[] PROGMEM = "Statistics";
 const char namm9[] PROGMEM = "Calibration";
 const char namm10[] PROGMEM = " ";
@@ -218,11 +218,11 @@ const char* const calibr[] PROGMEM = {
 #elif (INTERFACE == 2)
 const char namm1[] PROGMEM = "Pr:";
 const char namm2[] PROGMEM = "Emkost akb";
-const char namm3[] PROGMEM = "Tip Akb";
+const char namm3[] PROGMEM = "Tip akb";
 const char namm4[] PROGMEM = "Napryagenie akb";
 const char namm5[] PROGMEM = "Regim raboti";
 const char namm6[] PROGMEM = "Nastroiki";
-const char namm7[] PROGMEM = "Soprotivl. akb";
+const char namm7[] PROGMEM = "Soprot. akb";
 const char namm8[] PROGMEM = "Statistika";
 const char namm9[] PROGMEM = "Kalibrovka";
 const char namm10[] PROGMEM = " ";
@@ -300,7 +300,7 @@ const char* const calibr[] PROGMEM = { namc1, namc2 };
 #define txt17 "< OK >"
 //#define txt18 "V  Time "
 #define txt19 "<Stop>"
-#define txt20 "min"
+#define txt20 " min "
 #define txt21 "error"
 #define txt22 "Volt"
 #define txt23 "Amper"
@@ -365,13 +365,3 @@ const char simb_array[8][8] PROGMEM = {
 };
 
 //const char simbols[] PROGMEM = "VAWCNh%()<>:; ";
-
-#define PROBEL 32  // пробел
-#define LEFTs  60  // <
-#define RIGHTs 62  // >
-
-#define txt_C "C "
-#define txt_PRC "% "
-#define txt_OK "OK"
-
-

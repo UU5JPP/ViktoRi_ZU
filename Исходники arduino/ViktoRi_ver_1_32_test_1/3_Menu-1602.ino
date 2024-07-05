@@ -7,6 +7,7 @@ void Menu1602() {
 #if (POWPIN == 1)
   bitSet(flag_global, RELEY_OFF);  // разрешено отключать реле
 #endif
+  sensor_survey();  // опрос кнопок, INA226, напря. от БП., контроль dcdc.
   pam.Number = 1;
   Saved();                    // сохранить настройки
   uint8_t urovenmenu = 0;     // три уровня меню
@@ -25,8 +26,6 @@ void Menu1602() {
         // вывод меню
         if (printx) {
           printx = false;
-          //if (++mode >= MODES) mode = 0;     // на увеличение
-          //if (--mode < 0) mode = MODES - 1;  // на уменьшение
           if (x) main_menu = (x > 0) ? ((main_menu == POINTMENU) ? 0 : main_menu + x) : ((main_menu == 0) ? POINTMENU : main_menu + x);  // реализация кругового меню
           lcd.clear();
           disp.printFromPGM((int)(&menuTxt[main_menu]));
@@ -171,7 +170,7 @@ void Menu1602() {
               disp.printFromPGM((int)(&calibr[1]));
               if (x) point_setting = constrain(point_setting + x, 0, POINTCALIBRS);
               lcd.setCursor(0, point_setting);
-              lcd.write(RIGHTs);  // >
+              lcd.write('>');  // >
             }
             switch (butt.tick) {
               case STOPCLICK:
@@ -194,7 +193,7 @@ void Menu1602() {
         if (printx) {
           printx = false;
           setCursory();
-          if (main_menu) lcd.write(LEFTs);  // <
+          if (main_menu) lcd.write('<');  // <
           switch (main_menu) {
             case 0:
               // выбор профиля
@@ -202,9 +201,9 @@ void Menu1602() {
               EEPROM.get((int)(sizeof(pam) * vkr.profil + MEM), pam);  // читаю из памяти значения
               print_Capacity();
               Vout();
-              lcd.write(LEFTs);  // <            // *Pr:<0>Pb CA/Ca  *
+              lcd.write('<');  // <            // *Pr:<0>Pb CA/Ca  *
               lcd.print(vkr.profil);
-              lcd.write(RIGHTs);  // >
+              lcd.write('>');  // >
               print_mode(1);      // вывод типа акб
               ClearStr(4);        // очистить поле
               break;
@@ -225,9 +224,9 @@ void Menu1602() {
               pam.Voltage = constrain(pam.Voltage + x, 1, 100);  // 100 - максимальное количество ячеек акб
               if (bat.Volt(0) > POWERINT) pam.Voltage -= x;
               print_mode(4);  // 12.6V
-              lcd.write(40);  // (
+              lcd.write('(');  // (
               lcd.print(pam.Voltage);
-              lcd.write(41);  // )
+              lcd.write(')');  // )
               ClearStr(2);    // очистить поле
               break;
             case 4:
@@ -259,7 +258,7 @@ void Menu1602() {
           }
           if (main_menu and main_menu < POINTSETTINGS - 2) {
             lcd.setCursor(DISPLAYx - 1, 1);
-            lcd.write(RIGHTs);  // >
+            lcd.write('>');  // >
           }
         }
 
@@ -282,21 +281,19 @@ void Menu1602() {
           // *12.652V 0.061A  *
 #if (VOLTIN == 1)  // напряжение от БП
           setCursorx();
-          PrintVA(vin.volt(), 0, 0, 0, 2);
+          PrintVA(adc.volt, 0, 0, 0, 2);
 #endif
           lcd.setCursor(7, 0);
-#if (SENSTEMP1)
-            print_tr(kul.tQ1);  // температура
-#endif  
-#if (SENSTEMP2 == 2)
-          print_tr(ntc.akb);  // чтение температуры с датчика 2 акб
+#if (SENSTEMP1 or SENSTEMP2)
+            print_tr();  // температура транзистора или акб
 #endif
+
           setCursory();
           PrintVA(ina.voltsec, ina.ampersec, 0, 0, 3);  // *12.361V -0.253A *
-          // print_memoryFree(); // вывод свободной оперативки
+          // print_memoryFree(); // вывод свободной оперативки    
         }
 #if (LOGGER)
-        Sout.Serial_out(0);
+        Sout.Serial_out();
 #endif
       }  // --- выполнить раз в секунду
 

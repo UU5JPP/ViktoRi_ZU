@@ -45,10 +45,10 @@ void Operations() {
           case 1:
             // Бранимир Заряд 20 часов после достижения максимального напряжения
             ChargeAkb(pam.Volt_charge, constrain((int16_t)pam.Capacity << 4, 150, 3500), constrain((int16_t)(1.414f * pam.Capacity), CURMIN, 250), 72, false);  // заряд (Напр. заряда, ток заряда, ток завершения заряда, время заряда, дозар. откл.
-            
-            if (bitRead(pam.MyFlag, BRANIM)) pam.Number = 3;  // если ток заряда снизился до установленного то переходим в дозаряд 
+
+            if (bitRead(pam.MyFlag, BRANIM)) pam.Number = 3;         // если ток заряда снизился до установленного то переходим в дозаряд
             else if (bitRead(pam.MyFlag, BRANIMBOIL)) pam.Number++;  // иначе если время заряда превысило 20 часов
-            if (!roundi) pam.Number = 3; //или если счетчик циклов равен 0 то перейти в дозаряд            
+            if (!roundi) pam.Number = 3;                             //или если счетчик циклов равен 0 то перейти в дозаряд
             break;
           case 2:
             bitClear(pam.MyFlag, BRANIMBOIL);
@@ -59,7 +59,7 @@ void Operations() {
           case 3:
             // Бранимир дозаряд
             if (pam.typeAkb < 5) ChargeAkb(pam.Volt_add_charge, constrain(bat.Cur(1), CUR_CHARGE_MIN, CURRMAXINT), pam.Current_add_charge / 3, 10, true);  // дозаряд (Напр. заряда, ток заряда, ток окончания заряда, время заряда, дозар. вкл.
-            pam.Mode = 6;            
+            pam.Mode = 6;
             break;
         }
 #else
@@ -90,12 +90,14 @@ void Operations() {
         //  Котнтрольно-тренировочный цикл
 #if (DISCHAR == 1)
         {
-          int32_t KTC[4] = { 0 };  //  Ah_discharge, Wh_discharge, Ah_charge, Wh_charge,
+          int32_t KTC[4];  //  Ah_discharge, Wh_discharge, Ah_charge, Wh_charge,
+          EEPROM.get((((uint16_t)roundi << 4) - 16 + MEM_KTC), KTC);  // считать из памяти значения разряда, заряда roundi-цикла КТЦ
           switch (pam.Number) {
             case 1:
               // предварительный заряд
               ChargeAkb(pam.Volt_charge, pam.Current_charge, pam.Current_charge_min, (uint32_t)pam.Time_charge_h, false);  // заряд, дозаряд откл
               pam.Number++;
+              Res_mem_char();     // сброс значений заряда
               break;
             case 2:
               // дать отстояться
@@ -104,30 +106,35 @@ void Operations() {
               break;
             case 3:
               // Разряд
-              Res_mem_dischar();  // сброс значений разряда
+             // Res_mem_dischar();  // сброс значений разряда
               Discharge();        //разряд аккумулятора
               pam.Number++;
               KTC[0] = pam.Ah_discharge;  //  Ah_discharge, Wh_discharge, Ah_charge, Wh_charge,
               KTC[1] = pam.Wh_discharge;
-              EEPROM.put((((uint16_t)roundi << 4) - 16 + MEM_KTC), KTC);  // сохранить в памяти значения разряда н-цикла КТЦ
+              EEPROM.put((((uint16_t)roundi << 4) - 16 + MEM_KTC), KTC);  // сохранить в памяти значения разряда roundi-цикла КТЦ
               break;
             case 4:
               // заряд
-              Res_mem_char();                                                                                              // сброс значений заряда
+             // Res_mem_char();     // сброс значений заряда
               ChargeAkb(pam.Volt_charge, pam.Current_charge, pam.Current_charge_min, (uint32_t)pam.Time_charge_h, false);  // заряд, дозаряд откл
               KTC[2] = pam.Ah_charge;                                                                                      //  Ah_discharge, Wh_discharge, Ah_charge, Wh_charge,
               KTC[3] = pam.Wh_charge;
-              EEPROM.put((((uint16_t)roundi << 4) - 16 + MEM_KTC), KTC);  // сохранить в памяти значения разряда н-цикла КТЦ
+              EEPROM.put((((uint16_t)roundi << 4) - 16 + MEM_KTC), KTC);  // сохранить в памяти значения разряда roundi-цикла КТЦ
               if (bitRead(pam.MyFlag, CHARGE)) {
                 roundi--;
                 if (!roundi) pam.Number++;  // если счетчик циклов равен 0 то перейти в Дозаряд
-                else pam.Number = 2;        // иначе повторить КТЦ
+                else {
+                  // иначе повторить КТЦ
+                  pam.Number = 2;
+                  Res_mem_dischar();  // сброс значений разряда
+                  Res_mem_char();     // сброс значений заряда
+                }
               }
               break;
             case 5:
               // Дозаряд
               if (pam.typeAkb < 5) ChargeAkb(pam.Volt_add_charge, pam.Current_add_charge, pam.Current_add_charge_min, (uint32_t)pam.Time_add_charge_h, true);  // Включить дозаряд
-              pam.Mode = 6;                                                                                                                                  // перейти в Хранение
+              pam.Mode = 6;                                                                                                                                    // перейти в Хранение
               break;
           }
         }
@@ -150,7 +157,7 @@ void Operations() {
 
     if (BitIsClear(pam.MyFlag, CHARGE)) {
       Saved();  // сохранить настройки
-      End();    // Завершение работы      
+      End();    // Завершение работы
     }
   }
   // цикл работы

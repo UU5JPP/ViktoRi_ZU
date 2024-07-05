@@ -24,7 +24,7 @@ void Print_time(uint32_t time_real, uint8_t x, uint8_t y);
 void setCursorx(void);
 void setCursory(void);
 void printSimb(void);
-void print_tr(int8_t tr);
+void print_tr(void);
 void PrintOnOff(bool i);
 void Write_x(bool x);
 void print_mode(uint8_t i);
@@ -40,15 +40,16 @@ void Prstatistic(int i, uint32_t time_i, int32_t Ah, int32_t Wh);
 void Statistics_point(uint8_t point);
 void calculate(uint8_t i);
 void sensor_survey(void);
-void Q1_broken(void);
-
+#if (VOLTIN == 1)
+void check_Q1(void);
+#endif
 #if (POWPIN == 1)
 void Relay(void);
 #endif
 #if (GUARDA0)
 void Guard(void);
 #endif
-#if (CORRECTCUR == 1 and SENSTEMP2 == 2)
+#if (CORRECTCUR == 1 and SENSTEMP2)
 void Control_trAkb();
 #endif
 

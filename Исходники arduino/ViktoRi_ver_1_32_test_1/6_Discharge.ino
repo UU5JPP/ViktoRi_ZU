@@ -80,14 +80,12 @@ void Discharge() {
               printSimb();
               printCykl();
               setCursory();
-              PrintVA(0, 0, 0, pam.Wh_discharge, 2);
+              PrintVA(0, 0, 0, pam.Wh_discharge, 1);
               lcd.print(map(ina.voltsec, pam.Volt_discharge, s1, 0, 100));
-              lcd.print(F(txt_PRC));
-#if (SENSTEMP1)
-              print_tr(kul.tQ1);  // температура
-#endif
-#if (SENSTEMP2 == 2)
-              print_tr(ntc.akb);  // температура акб
+              lcd.write('%');
+              printSimb();
+#if (SENSTEMP1 or SENSTEMP2)
+            print_tr();  // температура транзистора или акб
 #endif
                 // print_memoryFree(); // вывод свободной оперативки
               if (ns_disp) ns_disp--;
@@ -114,11 +112,8 @@ void Discharge() {
               printSimb();
               printCykl();
               setCursory();
-#if (SENSTEMP1)
-              print_tr(kul.tQ1);  // температура
-#endif
-#if (SENSTEMP2 == 2)
-              print_tr(ntc.akb);  // температура акб
+#if (SENSTEMP1 or SENSTEMP2)
+            print_tr();  // температура транзистора или акб
 #endif
               if (ns_disp) ns_disp--;
               else n_disp = 0;
@@ -193,6 +188,7 @@ void Resist() {
       // если прошла секунда вывод на дисплей
       setCursory();
       PrintVA(ina.voltsec, abs(ina.ampersec), 0, 0, 3);  // *12.361V 3.555A  *
+      lcd.setCursor(DISPLAYx - 2, 0);
       lcd.print(--timer);
       if (ina.voltsec - vlt <= 1) break;  // стабилизация напряжения до 1мВ
       vlt = ina.voltsec;
@@ -210,8 +206,8 @@ void Resist() {
   PrintVA(U[1], I[1], 0, 0, 3);  // *12.36V 3.55A    *
   ClearStr(4);
   Delay(4000);                                                                                              // ожидание 4 сек
-  float r = ((float)(U[0] - U[1]) / (float)(I[1] - I[0])) / 4.9f * 1000;                                    // 4,2    // 3,6f // расчитать внутренее сопротивление аккумулятора
-  float curr = ((float)U[0] - ((float)(U[0] - U[1]) * (200.0f / (float)(I[1] - I[0]) / 10))) / (r * 4.5f);  //4,2  // расчет пускового тока - напряжение делить на сопротивление
+  float r = ((float)(U[0] - U[1]) / (float)(I[1] - I[0])) / 1.4f * 1000;                                    //4.9  4,2    // 3,6f // расчитать внутренее сопротивление аккумулятора
+  float curr = ((float)U[0] - ((float)(U[0] - U[1]) * (200.0f / (float)(I[1] - I[0]) / 10))) / (r * 4.3f);  //4.5  4,2  // расчет пускового тока - напряжение делить на сопротивление
   setCursory();
   lcd.print(r, 1);
   lcd.print(F("mOm "));

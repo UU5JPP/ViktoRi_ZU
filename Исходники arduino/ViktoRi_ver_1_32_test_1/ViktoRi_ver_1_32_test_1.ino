@@ -1,13 +1,11 @@
 #include "1_User_Setup.h"
 #include "2_menu.h"
-#include <FunctionLite.h>
-#include <EEPROM.h>
 
-#if (VOLTIN == 1)
-uint8_t flag_global = 0b00100000;
-#else
-uint8_t flag_global = 0b00100010;
-#endif
+#include <EEPROM.h>
+#include <FunctionLite.h>
+
+uint8_t flag_global = 0b00100011;
+
 #define POWERHIGH 0  // напряжение блока питания не превышает POWER_MAX (true - напряжения питания в норме)
 #define POWERON 1    // питание от БП поступает
 #define TR_Q1_ERR 2  // превышена температура на силовом транзисторе
@@ -127,19 +125,21 @@ void (*resetFunc)(void) = 0;  // функция reset с адресом 0
 
 #include "INA226int.h"  // Класс INA226
 
-#if (SENSTEMP1 == 1)
+#if (SENSTEMP1 == 1 or SENSTEMP2 == 1)
 #include <microDS18B20.h>      // Библиотека датчика температуры DS18B20.
-MicroDS18B20<PINTERM1> tr_Q1;  // датчик температуры.
+#if (SENSTEMP1 == 1)
+MicroDS18B20<PINTERM1> tr_Q1;  // датчик температуры силового транзистора.
+#endif
+#if (SENSTEMP2 == 1)
+MicroDS18B20<PINTERM2> tr_akb;  // датчик температуры аккумулятора.
+#endif
 #endif
 
 #include "AllFunctions.h"
 #include "Classes.h"
 
-TimerMs sekd(1000);  // таймер 1 секунда для вывода на дисплей и периодических функций
-TimerMs sekv(1000);  // таймер 1 секунда для постоянно работающих функций
-#if (POWPIN == 1)
-TimerMs tvin(60000);  // таймер 1 минута для реле 220В
-#endif
+
+
 
 #include "DCDC.h"  // класс управления DC-DC модулем
 
@@ -175,19 +175,20 @@ void setup() {
 #endif
 #if (VOLTIN == 1)
   gio::mode(POWIN, INPUT);  // пин замера напряжения от БП
-    // настройка АЦП
-  analogReference_my(DEFAULT);  // Установка напр реф /INTERNAL
-  analogPrescaler_my(16);       // установка количества выборки АЦП - 2,4,8,16,32,64,128
+  // настройка АЦП
+  ADC_enable();               // вызывается обязательно
+  ADC_setPrescaler(64);       // Выбрать делитель частоты АЦП (2, 4, 8, 16, 32, 64, 128) // (default: 2)
+  ADC_setReference(ADC_VCC);  // Выбрать источник опорного напряжения АЦП (ADC_1V1, ADC_AREF, ADC_VCC) // (default: ADC_AREF)
 #endif
 
-#if (LOGGER)
-  Serial.begin(115200);  // 9600   115200
+#if (LOGGER)  
+  Serial.begin(SERIAL_SPEED);  // 9600   115200
 #endif
 
   lcd.init();                                       // Инициализация дисплея
   lcd.backlight();                                  // Подключение подсветки
   if (EEPROM.read(0) != MEMVER) Reset_settings(2);  // сброс настроек
-  disp.mysimbol();                                  // загрузка в память дисплея своих символов(состояние акб)
+  for (uint8_t x = 0; x < 8; x++) lcd.createChar(x, &simb_array[x][0]);   // загрузка в память дисплея своих символов(состояние акб)
 
   // Приветствие. Версия прошивки и тип контроллера
   lcd.setCursor(trunc((DISPLAYx - 7) / 2), DISPLAYy / 2 - 1);
@@ -206,11 +207,14 @@ void setup() {
     // проверка DS18B20 датчик температуры
     tr_Q1.setResolution(9);  // Установить разрешение термометра 9-12 бит, разрешающей способность - 0,5 (1/2) °C, 0,25 (1/4) °C, 0,125 (1/8) °C и 0,0625 (1/16) °C
     tr_Q1.requestTemp();     // Запросить новое преобразование температуры
-  } else {
-    lcd.clear();
-    lcd.print(F(txt7));  // "DS18B20 "
-    print_mode(2);       // "error"
-    Delay(1500);
+  }
+#endif
+#if (SENSTEMP2 == 1)
+  tr_akb.online();  // опросить датчик температуры
+  if (tr_akb.online()) {
+    // проверка DS18B20 датчик температуры
+    tr_akb.setResolution(9);  // Установить разрешение термометра 9-12 бит, разрешающей способность - 0,5 (1/2) °C, 0,25 (1/4) °C, 0,125 (1/8) °C и 0,0625 (1/16) °C
+    tr_akb.requestTemp();     // Запросить новое преобразование температуры
   }
 #endif
   // Ожидание 3 секунды в течении которых удержанием кнопки Стоп или энкодера можно сбросить настройки по умолчанию
@@ -222,9 +226,6 @@ void setup() {
 #endif
       Reset_settings(1);  // сброс настроек - 1 Стереть все.
     }
-#if (VOLTIN == 1)
-    analogRead_my(POWIN);  // замер напряжения БП
-#endif
   }
 #if (FAN)
   gio::low(PWMKUL);  // остановка вентилятора
@@ -250,12 +251,16 @@ void setup() {
   }
 #endif
 #if (VOLTIN == 1)
-  vin.start();  // старт замеров напряжения от БП
+  adc.start();  // старт замеров напряжения от БП
 #endif
 #if (FAN)
   kul.begin();  // инициализация кулера
 #endif
-  if (bitRead(vkr.GlobFlag, TRQ1)) Q1_broken();
+  if (bitRead(vkr.GlobFlag, TRQ1)) {
+    #if (VOLTIN == 1)    // напряжение от БП
+    check_Q1();      //проверка на то что силовой транзистор пробит
+#endif
+  }
   // если заряд не был завершен корректно
   if (bitRead(pam.MyFlag, CHARGE)) {
     lcd.clear();

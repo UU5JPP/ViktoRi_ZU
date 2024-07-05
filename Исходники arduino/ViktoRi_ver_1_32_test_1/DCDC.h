@@ -6,7 +6,7 @@
 // класс управления DC-DC модулем
 class DCDC {
 public:
-// DCDC(void){};
+  // DCDC(void){};
 
   void start(bool mods) {
     _cur_max = CURRMAXINT;
@@ -19,7 +19,7 @@ public:
     _time_sec = millis();
   }
 
-    // отключить плавный пуск - вызывать после start() и перед begin()
+  // отключить плавный пуск - вызывать после start() и перед begin()
   void Smooth_off(void) {
     bitClear(_flags, Smooth);
   }
@@ -35,8 +35,10 @@ public:
   void Control(void) {
     if (bitRead(pam.MyFlag, CHARGE) and bitRead(_flags, Pause) and bitRead(flag_global, POWERHIGH) and bitRead(flag_global, TEMP_AKB)) {
       if (bitRead(_flags, Mode) and BitIsClear(flag_global, POWERON)) return;  // если включен заряд а напряжения от БП нет
-      if (abs(ina.amperms) >= _cur_max and _tok > 0) _tok--;
+      //if (abs(ina.amperms) >= _cur_max and _tok > 0) _tok--;
+      if (ina.isAlert()) _tok--;
       else {
+
         if (millis() - _time_sec > 1000) {
           _time_sec = millis();
           // плавный пуск - плавное увеличение тока заряда/разряда
@@ -81,7 +83,7 @@ public:
   }
 
   void stop(void) {
-    #if (MCP4725DAC)
+#if (MCP4725DAC)
     dac.setVoltage(0);  // отключаем заряд
 #else
     bitClear(TCCR2A, COM2B1);  // Pin 3 PWM disable
@@ -90,7 +92,7 @@ public:
 #if (DISCHAR == 1)
     bitClear(TCCR2A, COM2A1);  // 11 PWM disable
     gio::low(PWMDCH);          // отключаем разряд
-#endif
+#endif  
   }
 
   void pause(bool x) {
@@ -155,7 +157,9 @@ private:
   uint32_t _time_sec;
 
   uint8_t _flags = 0b00000000;  // флаги
-  enum { Pause = 0, Smooth, Mode };  // пауза, плавный пуск, режим (заряд/ разряд)
+  enum { Pause = 0,
+         Smooth,
+         Mode };  // пауза, плавный пуск, режим (заряд/ разряд)
 };
 
 extern DCDC dcdc;
